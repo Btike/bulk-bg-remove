@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>bulk-bg-remove</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect width='12' height='12' fill='%2321262d'/%3E%3Cpath fill='%233fb950' d='M5 3h4v1H5zM4 4h6v4H4zM5 8h4v2H5zM4 10h6v1H4z'/%3E%3C/svg%3E">
 <style>
 :root {
   --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128; --line: #30363d;
@@ -40,7 +41,7 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .path { flex: 1 1 280px; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; }
 .path:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
-.btn { border: 1px solid var(--line); background: var(--panel-2); padding: 8px 14px; border-radius: 6px; cursor: pointer; letter-spacing: .06em; }
+.btn { border: 1px solid var(--line); background: var(--panel-2); padding: 8px 14px; border-radius: 6px; cursor: pointer; letter-spacing: .06em; color: var(--text); text-decoration: none; display: inline-block; }
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--green-2); border-color: var(--green-3); color: #fff; font-weight: 700; }
 .btn.primary:hover { background: var(--green-3); }
@@ -75,7 +76,7 @@ details ul { margin: 6px 0 0; padding-left: 18px; max-height: 160px; overflow: a
 .lane .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lane .pct { text-align: right; color: var(--muted); }
 .grid-wrap { overflow-x: auto; padding-bottom: 4px; }
-.grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 13px); gap: 3px; width: max-content; }
+.grid { display: flex; flex-wrap: wrap; gap: 3px; }
 .cell { width: 13px; height: 13px; border-radius: 2px; background: var(--cell); outline: 1px solid #ffffff08; outline-offset: -1px; cursor: default; }
 .cell.run { background: var(--yellow); animation: pulse .8s ease-in-out infinite alternate; }
 .cell.done { background: var(--green-3); cursor: pointer; }
@@ -102,7 +103,7 @@ details ul { margin: 6px 0 0; padding-left: 18px; max-height: 160px; overflow: a
 .compare input { position: absolute; inset: auto 0 8px; width: calc(100% - 16px); margin: 0 8px; }
 .modal .row { justify-content: space-between; margin-top: 10px; }
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; z-index: 20; max-width: calc(100% - 32px); }
-@media (max-width: 560px) { .lane { grid-template-columns: 70px 1fr 44px; } .brand h1 { font-size: 15px; } .start { width: 100%; } }
+@media (max-width: 560px) { .lane { grid-template-columns: 58px 1fr 44px; } .lane .who { font-size: 11px; } .brand h1 { font-size: 15px; } .start { width: 100%; } }
 </style>
 </head>
 <body>
@@ -309,7 +310,7 @@ function planReady(res) {
     stat("ETA", "~" + fmtTime(plan.eta_seconds)) +
     stat("RAM", `${plan.min_free_ram_gb} / ${hw.ram_available_gb} GB`) +
     stat("Model · edges", `${plan.model} · ${plan.edges}`, true) +
-    stat("Output", res.output, true);
+    stat("Output", res.output_display || res.output, true);
   const alerts = [];
   for (const b of plan.blockers) alerts.push(`<div class="alert bad">✗ ${esc(b)}</div>`);
   for (const w of plan.warnings) alerts.push(`<div class="alert warn">! ${esc(w)}</div>`);
@@ -321,7 +322,7 @@ function planReady(res) {
   sk.querySelector("ul").innerHTML = skipped.map((s) => `<li>${esc(base(s.path))} — ${esc(s.reason)}</li>`).join("");
   $("start").disabled = !res.ok || plan.images === 0;
   $("start").textContent = plan.images === 0 && plan.already_done ? "ALL DONE" : "PRESS START";
-  state.total = plan.images; state.alreadyDone = plan.already_done || 0;
+  state.total = plan.images; state.alreadyDone = plan.already_done || 0; state.outputDisplay = res.output_display;
   show("plan"); if (!$("start").disabled) $("start").focus();
 }
 $("back").addEventListener("click", () => show("select"));
@@ -341,6 +342,15 @@ $("start").addEventListener("click", async () => {
   try { await api(`/api/jobs/${state.job}/start`, { method: "POST" }); listen(); }
   catch (e) { toast("✗ " + e.message, 7000); show("plan"); $("start").disabled = false; }
 });
+async function pollRam() {
+  if ($("screen-run").classList.contains("hidden") || !$("clear").classList.contains("hidden")) return;
+  try {
+    const s = await api("/api/system"); const free = s.hardware.ram_available_gb;
+    state.system.hardware = s.hardware; renderChips();
+    if (!$("ram").textContent.startsWith("⏸")) { $("ram").textContent = `RAM free ${free} GB`; $("ram").className = "chip " + (free < 2 ? "bad" : free < 4 ? "warn" : "ok"); }
+  } catch (_) { /* transient */ }
+}
+setInterval(pollRam, 3000);
 function listen() {
   if (state.es) state.es.close();
   const es = new EventSource(`/api/jobs/${state.job}/events?t=${encodeURIComponent(TOKEN)}`); state.es = es;
@@ -405,7 +415,7 @@ function finish(e) {
   for (const w of Object.values(state.workers)) clearInterval(w.timer);
   const failed = e.failed.length; const title = $("clear-title");
   title.textContent = failed ? "STAGE CLEAR" : "GAME CLEAR"; title.classList.toggle("partial", !!failed);
-  $("clear-sub").textContent = `${e.processed} done · ${failed} failed · ${e.already_done} already done · ${fmtTime(e.seconds)} → ${e.output}`;
+  $("clear-sub").textContent = `${e.processed} done · ${failed} failed · ${e.already_done} already done · ${fmtTime(e.seconds)} → ${state.outputDisplay || e.output}`;
   for (const w of e.warnings) log(`! ${base(w.path)}: ${w.warning}`, "warn");
   for (const f of e.failed) log(`✗ ${base(f.path)}: ${f.reason}`, "bad");
   log(`■ ${failed ? "STAGE" : "GAME"} CLEAR · output → ${e.output}`, failed ? "warn" : "ok");

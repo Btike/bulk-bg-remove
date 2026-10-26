@@ -95,9 +95,9 @@ def test_worker_override_is_honoured_with_a_warning() -> None:
 
 
 def test_heavier_model_fits_fewer_workers() -> None:
-    lite = make_plan(hardware(free_gb=45.0, perf=16), inventory(), 100.0, settings())
+    lite = make_plan(hardware(free_gb=52.0, perf=16), inventory(), 100.0, settings())
     full = make_plan(
-        hardware(free_gb=45.0, perf=16), inventory(), 100.0, settings(model="birefnet-general")
+        hardware(free_gb=52.0, perf=16), inventory(), 100.0, settings(model="birefnet-general")
     )
     assert full.workers < lite.workers
 
@@ -105,3 +105,8 @@ def test_heavier_model_fits_fewer_workers() -> None:
 def test_lighter_model_needs_far_less_ram() -> None:
     assert minimum_free_ram_gb("isnet-general-use") < 5.0
     assert minimum_free_ram_gb("birefnet-general-lite") > 11.0
+
+
+def test_parallel_needs_headroom_beyond_two_model_copies() -> None:
+    assert make_plan(hardware(free_gb=22.0), inventory(), 100.0, settings()).workers == 1
+    assert make_plan(hardware(free_gb=25.0), inventory(), 100.0, settings()).workers == 2

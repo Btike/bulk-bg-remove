@@ -91,6 +91,14 @@ def _safe_relative(raw: str) -> PurePosixPath:
     return path
 
 
+def _display(path: Path) -> str:
+    """Shorten the home folder to ~ for display."""
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        return str(path)
+
+
 def _unique_output(parent: Path, name: str) -> Path:
     candidate = parent / f"{name}{OUTPUT_SUFFIX}"
     counter = 2
@@ -188,6 +196,7 @@ def create_app(
             "job": job_id,
             "name": name,
             "output": str(output),
+            "output_display": _display(output),
             "ok": plan.ok,
             "events": list(job.events),
         }
@@ -218,7 +227,7 @@ def create_app(
             "models": models,
             "default_model": DEFAULT_MODEL,
             "extensions": list(SUPPORTED_EXTENSIONS),
-            "downloads": str(downloads),
+            "downloads": _display(downloads),
             "busy": active_job() is not None,
         }
 

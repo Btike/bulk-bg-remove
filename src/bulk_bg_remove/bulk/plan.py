@@ -34,6 +34,9 @@ IMAGE_GB_PER_MEGAPIXEL = 0.02
 MATTING_GB_PER_MEGAPIXEL = 0.05
 
 RESERVE_RAM_GB = 1.5  # kept free for the OS and other apps
+# Each extra parallel worker must also leave this much headroom: two BiRefNet
+# lite workers need ~24 GB free before the run goes parallel.
+PARALLEL_HEADROOM_GB = 3.0
 DEFAULT_MAX_WORKERS = 4
 
 # Lossless RGBA output size per pixel (photos; conservative).
@@ -153,7 +156,8 @@ def make_plan(
     per_worker = model_peak_gb(settings.model) + peak
     floor = settings.min_free_ram_gb or per_worker + RESERVE_RAM_GB
 
-    by_ram = max(1, math.floor((hardware.ram_available_gb - RESERVE_RAM_GB) / per_worker))
+    spare = hardware.ram_available_gb - (per_worker + RESERVE_RAM_GB)
+    by_ram = 1 + max(0, math.floor(spare / (per_worker + PARALLEL_HEADROOM_GB)))
     # Each worker uses every performance core; a second worker still adds ~25%.
     by_cpu = max(1, hardware.cpu_performance // 2)
     limits = {
@@ -193,8 +197,6 @@ def make_plan(
         warnings.append(
             f"very large image ({inventory.max_megapixels:.0f} MP): expect high RAM use per image"
         )
-    if hardware.coreml_listed and hardware.device == "cpu":
-        warnings.append("CoreML is listed but BiRefNet runs on CPU; timings assume CPU")
 
     eta = estimate_eta_seconds(settings.model, hardware.device, images, workers, settings.edges)
     return Plan(
