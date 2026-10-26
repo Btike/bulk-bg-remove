@@ -48,7 +48,7 @@ EXIF rotation, and handles CMYK, 16-bit and 45 MP photos.
 
 ## Install
 
-Any agent ([skills CLI](https://github.com/vercel-labs/skills)):
+Any agent ([skills CLI](https://github.com/vercel-labs/skills), needs Node.js 22.20 or newer):
 
 ```bash
 npx skills add Btike/bulk-bg-remove
