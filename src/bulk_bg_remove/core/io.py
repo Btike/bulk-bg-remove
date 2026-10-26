@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
+from .. import formats  # noqa: F401  (registers the HEIC/HEIF opener)
 from ..domain import OutputFormat
 
 
@@ -23,11 +24,19 @@ class SourceImage:
 
 
 def load_source(path: Path) -> SourceImage:
-    """Load an image at full resolution as RGB, keeping its colour profile."""
+    """Load an image at full resolution as RGB, keeping its colour profile.
+
+    EXIF orientation is applied first (a lossless rotate/flip), so phone photos
+    come out the way they are displayed instead of sideways.
+    """
     with Image.open(path) as handle:
         handle.load()
         icc = handle.info.get("icc_profile")
-        rgb = handle.convert("RGB")
+        # A CMYK profile cannot describe the RGB pixels we write out.
+        if handle.mode == "CMYK":
+            icc = None
+        upright = ImageOps.exif_transpose(handle)
+        rgb = upright.convert("RGB")
     return SourceImage(rgb=rgb, icc_profile=icc)
 
 

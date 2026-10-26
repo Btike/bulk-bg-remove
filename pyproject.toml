@@ -18,8 +18,9 @@ classifiers = [
 ]
 dependencies = [
     "rembg[cpu]>=2.0.50",
-    "pillow>=10.2",
+    "pillow>=11.3",
     "numpy>=1.26",
+    "pillow-heif>=0.18",
 ]
 
 [dependency-groups]
