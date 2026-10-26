@@ -69,8 +69,11 @@ dependencies = [
     { name = "pillow" },
     { name = "pillow-heif" },
     { name = "psutil" },
+    { name = "pymatting" },
     { name = "rembg", extra = ["cpu"] },
     { name = "rich" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.dev-dependencies]
@@ -87,8 +90,10 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.3" },
     { name = "pillow-heif", specifier = ">=0.18" },
     { name = "psutil", specifier = ">=5.9" },
+    { name = "pymatting", specifier = ">=1.1" },
     { name = "rembg", extras = ["cpu"], specifier = ">=2.0.50" },
     { name = "rich", specifier = ">=13.7" },
+    { name = "scipy", specifier = ">=1.11" },
 ]
 
 [package.metadata.requires-dev]

@@ -12,7 +12,7 @@ from rich.console import Console
 
 from . import __version__
 from .bulk.events import JSONObject
-from .bulk.plan import MIN_FREE_RAM_GB, model_ram_gb
+from .bulk.plan import minimum_free_ram_gb, model_peak_gb
 from .bulk.scan import probe_hardware
 from .engine.model import DEFAULT_MODEL, downloaded_model_path
 
@@ -20,6 +20,7 @@ from .engine.model import DEFAULT_MODEL, downloaded_model_path
 def collect(model: str) -> JSONObject:
     hardware = probe_hardware()
     weights = downloaded_model_path(model)
+    needed = minimum_free_ram_gb(model)
     try:
         import pillow_heif  # noqa: F401
 
@@ -31,7 +32,7 @@ def collect(model: str) -> JSONObject:
         "avif": bool(features.check("avif")),
         "webp": bool(features.check("webp")),
         "model_downloaded": weights is not None,
-        "enough_free_ram": hardware.ram_available_gb >= MIN_FREE_RAM_GB,
+        "enough_free_ram": hardware.ram_available_gb >= needed,
     }
     return {
         "version": __version__,
@@ -39,8 +40,8 @@ def collect(model: str) -> JSONObject:
         "hardware": hardware.to_dict(),
         "model": model,
         "model_path": str(weights) if weights else None,
-        "model_ram_gb": model_ram_gb(model),
-        "min_free_ram_gb": MIN_FREE_RAM_GB,
+        "model_peak_ram_gb": model_peak_gb(model),
+        "min_free_ram_gb": round(needed, 1),
         "checks": dict(checks),
         "ready": all(v for k, v in checks.items() if k != "model_downloaded"),
     }
@@ -71,7 +72,7 @@ def doctor(argv: Sequence[str]) -> int:
         "avif": "AVIF input",
         "webp": "WebP input/output",
         "model_downloaded": f"model {report['model']}",
-        "enough_free_ram": f"free RAM ≥ {MIN_FREE_RAM_GB:.0f} GB",
+        "enough_free_ram": f"free RAM ≥ {report['min_free_ram_gb']} GB (12 MP photos)",
     }
     for key, label in labels.items():
         ok = bool(checks[key])

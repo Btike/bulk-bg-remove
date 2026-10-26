@@ -9,6 +9,7 @@ from PIL import Image
 
 from bulk_bg_remove.bulk.events import Event
 from bulk_bg_remove.bulk.runner import Job, Runner, RunSettings
+from bulk_bg_remove.core.matting import EdgeMode
 from bulk_bg_remove.domain import OutputFormat
 from conftest import MakeImage
 from fakes import FAILING_FACTORY, FAKE_FACTORY
@@ -18,7 +19,7 @@ def settings(workers: int = 2, factory: str = FAKE_FACTORY, **overrides: float) 
     return RunSettings(
         model="fake",
         output_format=OutputFormat.PNG,
-        alpha_matting=False,
+        edges=EdgeMode.MATTE,
         workers=workers,
         threads_per_worker=1,
         pause_below_gb=overrides.get("pause_below_gb", 0.0),

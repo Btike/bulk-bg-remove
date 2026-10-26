@@ -128,6 +128,10 @@ class TerminalReporter:
             f"{todo} to process · {mode} ([dim]limited by {_str(data['binding_limit'])}[/]) · "
             f"ETA ~{_duration(_num(data['eta_seconds']))}",
         )
+        self.line(
+            f"[dim]model {_str(data.get('model'))} · edges {_str(data.get('edges'))} · "
+            f"needs {_num(data['min_free_ram_gb']):.1f} GB free RAM[/]"
+        )
         if already:
             self.line(f"[dim]{already} already done — skipping (use --force to redo)[/]")
         for warning in data["warnings"] if isinstance(data["warnings"], list) else []:

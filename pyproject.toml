@@ -21,6 +21,8 @@ dependencies = [
     "pillow>=11.3",
     "numpy>=1.26",
     "pillow-heif>=0.18",
+    "pymatting>=1.1",
+    "scipy>=1.11",
     "psutil>=5.9",
     "rich>=13.7",
 ]
@@ -62,5 +64,5 @@ mypy_path = "src"
 packages = ["bulk_bg_remove"]
 
 [[tool.mypy.overrides]]
-module = ["rembg", "rembg.*", "onnxruntime", "onnxruntime.*"]
+module = ["rembg", "rembg.*", "onnxruntime", "onnxruntime.*", "pymatting", "pymatting.*", "scipy", "scipy.*"]
 ignore_missing_imports = true

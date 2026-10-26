@@ -21,6 +21,7 @@ from .bulk.events import Event
 from .bulk.runner import DEFAULT_FACTORY
 from .bulk.session import BulkOptions, BulkSession
 from .console import JsonReporter, TerminalReporter
+from .core.matting import EdgeMode
 from .domain import OutputFormat
 from .engine.model import DEFAULT_MODEL
 from .formats import SUPPORTED_EXTENSIONS
@@ -50,15 +51,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="output format, always lossless (default: png)",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"default: {DEFAULT_MODEL}")
-    parser.add_argument(
-        "--alpha-matting", action="store_true", help="refine hair/fur edges (slower, more RAM)"
+    edges = parser.add_mutually_exclusive_group()
+    edges.add_argument(
+        "--clean-edges",
+        action="store_const",
+        dest="edges",
+        const=EdgeMode.CLEAN,
+        help="also remove the old background's colour halo from edge pixels "
+        "(changes the colour of semi-transparent edge pixels only)",
     )
+    edges.add_argument(
+        "--fast-edges",
+        action="store_const",
+        dest="edges",
+        const=EdgeMode.MASK,
+        help="skip edge matting (faster, coarser hair and fur)",
+    )
+    parser.set_defaults(edges=EdgeMode.MATTE)
     parser.add_argument("--workers", type=int, help="force a worker count (default: auto)")
     parser.add_argument(
         "--min-free-ram",
         type=float,
         metavar="GB",
-        help="refuse to start below this much free RAM (default: auto, at least 4 GB)",
+        help="refuse to start below this much free RAM (default: what the model needs)",
     )
     parser.add_argument("--force", action="store_true", help="redo images already done")
     parser.add_argument("--dry-run", action="store_true", help="scan and plan, then stop")
@@ -75,7 +90,7 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
     options = BulkOptions(
         model=args.model,
         output_format=OutputFormat(args.output_format),
-        alpha_matting=args.alpha_matting,
+        edges=args.edges,
         workers=args.workers,
         min_free_ram_gb=args.min_free_ram,
         force=args.force,

@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from ..core.matting import EdgeMode
 from ..domain import OutputFormat
 from ..engine.model import DEFAULT_MODEL, downloaded_model_path, ensure_model
 from ..paths import OutputTarget, map_outputs, output_root_for
@@ -24,7 +25,7 @@ from .verify import is_complete, verify_output
 class BulkOptions:
     model: str = DEFAULT_MODEL
     output_format: OutputFormat = OutputFormat.PNG
-    alpha_matting: bool = False
+    edges: EdgeMode = EdgeMode.MATTE
     workers: int | None = None
     max_workers: int = DEFAULT_MAX_WORKERS
     min_free_ram_gb: float | None = None
@@ -124,7 +125,7 @@ class BulkSession:
         settings = PlanSettings(
             model=self._options.model,
             output_format=self._options.output_format,
-            alpha_matting=self._options.alpha_matting,
+            edges=self._options.edges,
             workers=self._options.workers,
             max_workers=self._options.max_workers,
             min_free_ram_gb=self._options.min_free_ram_gb,
@@ -134,7 +135,17 @@ class BulkSession:
             # Everything is already done: nothing can block an empty run.
             plan = replace(plan, blockers=())
         self.plan = plan
-        self._emit(Event("plan", {**plan.to_dict(), "already_done": len(done)}))
+        self._emit(
+            Event(
+                "plan",
+                {
+                    **plan.to_dict(),
+                    "model": self._options.model,
+                    "edges": self._options.edges.value,
+                    "already_done": len(done),
+                },
+            )
+        )
         return plan
 
     def cancel(self) -> None:
@@ -163,7 +174,7 @@ class BulkSession:
                 RunSettings(
                     model=self._options.model,
                     output_format=self._options.output_format,
-                    alpha_matting=self._options.alpha_matting,
+                    edges=self._options.edges,
                     workers=self.plan.workers,
                     threads_per_worker=self.plan.threads_per_worker,
                     pause_below_gb=self.plan.pause_below_gb,
@@ -190,6 +201,8 @@ class BulkSession:
                 processed += 1
                 if check.warning:
                     warnings.append((str(outcome.job.destination), check.warning))
+                if outcome.note:
+                    warnings.append((str(outcome.job.destination), outcome.note))
 
         report = Report(
             output_root=self.output_root,

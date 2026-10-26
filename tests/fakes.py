@@ -20,9 +20,7 @@ class FakeRemover:
     def __init__(self, model_name: str) -> None:
         self.model_name = model_name
 
-    def alpha_mask(
-        self, image: Image.Image, *, alpha_matting: bool, post_process: bool = False
-    ) -> Image.Image:
+    def alpha_mask(self, image: Image.Image) -> Image.Image:
         mask = Image.new("L", image.size, 0)
         if image.getpixel((0, 0)) == NO_SUBJECT_MARKER:
             return mask

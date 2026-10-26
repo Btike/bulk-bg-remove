@@ -24,6 +24,7 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.queues import Queue
 from pathlib import Path
 
+from ..core.matting import EdgeMode
 from ..core.pipeline import Stage, process_image
 from ..domain import OutputFormat
 from ..engine.model import MaskModel
@@ -36,7 +37,8 @@ DEFAULT_FACTORY = "bulk_bg_remove.engine.model:BackgroundRemover"
 STAGE_PROGRESS: dict[Stage, int] = {
     Stage.LOADING: 2,
     Stage.REMOVING: 10,
-    Stage.COMPOSITING: 85,
+    Stage.REFINING: 70,
+    Stage.COMPOSITING: 88,
     Stage.SAVING: 92,
 }
 
@@ -52,7 +54,7 @@ class Job:
 class RunSettings:
     model: str
     output_format: OutputFormat
-    alpha_matting: bool
+    edges: EdgeMode
     workers: int
     threads_per_worker: int
     pause_below_gb: float
@@ -68,11 +70,13 @@ class JobOutcome:
     width: int | None = None
     height: int | None = None
     reason: str | None = None
+    note: str | None = None
 
 
 # Messages from workers are plain tuples so they pickle cheaply:
 #   ("ready", worker) | ("init_failed", worker, reason) | ("stage", worker, job_id, stage)
-#   ("done", worker, job_id, width, height, seconds) | ("failed", worker, job_id, reason, seconds)
+#   ("done", worker, job_id, width, height, seconds, note)
+#   ("failed", worker, job_id, reason, seconds)
 WorkerMessage = tuple[str | int | float, ...]
 
 
@@ -125,7 +129,7 @@ def worker_main(
                 Path(source),
                 temp,
                 output_format=settings.output_format,
-                alpha_matting=settings.alpha_matting,
+                edges=settings.edges,
                 on_stage=_stage_reporter(messages, worker, job_id),
             )
             os.replace(temp, final)
@@ -135,7 +139,8 @@ def worker_main(
             messages.put(("failed", worker, job_id, reason, time.monotonic() - started))
         else:
             elapsed = time.monotonic() - started
-            messages.put(("done", worker, job_id, result.width, result.height, elapsed))
+            note = result.note or ""
+            messages.put(("done", worker, job_id, result.width, result.height, elapsed, note))
 
 
 class Runner:
@@ -316,7 +321,8 @@ class Runner:
             idle.append(worker)
             if kind == "done":
                 width, height, seconds = int(message[3]), int(message[4]), float(message[5])
-                outcomes[job.id] = JobOutcome(job, True, seconds, width, height)
+                note = str(message[6]) or None
+                outcomes[job.id] = JobOutcome(job, True, seconds, width, height, note=note)
                 self._emit(
                     Event(
                         "job_done",
@@ -326,6 +332,7 @@ class Runner:
                             "width": width,
                             "height": height,
                             "seconds": round(seconds, 2),
+                            "note": note,
                         },
                     )
                 )

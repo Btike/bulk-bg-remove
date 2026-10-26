@@ -1,4 +1,4 @@
-"""The quality-preserving pipeline: load -> infer mask -> composite -> save."""
+"""The quality-preserving pipeline: load -> mask -> refine edges -> composite -> save."""
 
 from __future__ import annotations
 
@@ -11,11 +11,13 @@ from ..domain import OutputFormat
 from ..engine.model import MaskModel
 from .compositing import composite_rgba
 from .io import load_source, save_rgba
+from .matting import EdgeMode, refine_edges
 
 
 class Stage(StrEnum):
     LOADING = "loading"
     REMOVING = "removing"
+    REFINING = "refining"
     COMPOSITING = "compositing"
     SAVING = "saving"
 
@@ -25,6 +27,7 @@ class ProcessResult:
     output_path: Path
     width: int
     height: int
+    note: str | None = None
 
 
 def process_image(
@@ -33,11 +36,14 @@ def process_image(
     output_path: Path,
     *,
     output_format: OutputFormat,
-    alpha_matting: bool,
-    post_process: bool = False,
+    edges: EdgeMode = EdgeMode.MATTE,
     on_stage: Callable[[Stage], None] | None = None,
 ) -> ProcessResult:
-    """Remove the background from one image, preserving the subject verbatim."""
+    """Remove the background from one image.
+
+    The subject's RGB is copied verbatim; only in `EdgeMode.CLEAN` are the
+    semi-transparent edge pixels recoloured to remove the old background's halo.
+    """
 
     def stage(value: Stage) -> None:
         if on_stage is not None:
@@ -46,9 +52,11 @@ def process_image(
     stage(Stage.LOADING)
     source = load_source(source_path)
     stage(Stage.REMOVING)
-    mask = remover.alpha_mask(source.rgb, alpha_matting=alpha_matting, post_process=post_process)
+    mask = remover.alpha_mask(source.rgb)
+    stage(Stage.REFINING)
+    refined = refine_edges(source.rgb, mask, edges)
     stage(Stage.COMPOSITING)
-    rgba = composite_rgba(source.rgb, mask)
+    rgba = composite_rgba(refined.rgb, refined.alpha)
     stage(Stage.SAVING)
     save_rgba(rgba, output_path, output_format, icc_profile=source.icc_profile)
-    return ProcessResult(output_path=output_path, width=rgba.width, height=rgba.height)
+    return ProcessResult(output_path, rgba.width, rgba.height, refined.note)
