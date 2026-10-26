@@ -84,9 +84,38 @@ bulk-bg-remove                              # opens a drag-and-drop page in your
 ```
 </details>
 
+## Which model it picks
+
+You do not choose: the agent looks at a few of your photos, tells the engine
+what kind they are, and the engine takes the best model for that kind that
+fits in your free RAM. Scores are from a [blind-judged benchmark](https://github.com/Btike/bulk-bg-remove/blob/main/BENCHMARK.md) (0–10):
+
+| Your photos | Best model | With little RAM (~4 GB free) |
+|---|---|---|
+| Products, objects | `birefnet-general-lite` 8.6 | `silueta` 8.1, used on its own |
+| Hair, fur, plants, wires | `birefnet-general` 7.6 | `silueta` 5.2, only if you say yes |
+| People | `birefnet-general` 7.8 | `silueta` 5.8, only if you say yes |
+| Busy scenes | `birefnet-general` 6.3 | `silueta` 4.0, only if you say yes |
+| Drawings, anime | `isnet-anime` 9.0 | needs ~5 GB free |
+
+## Options
+
+| Flag | What it does |
+|---|---|
+| `--profile uniform\|complex\|people\|scene\|drawing` | what the photos are; the model follows |
+| `--model NAME` | force a model instead of `auto` |
+| `--format webp` | smaller lossless files (PNG by default) |
+| `--clean-edges` | remove the old background's colour halo from hair and fur edges |
+| `--fast-edges` | skip edge matting: faster, coarser hair |
+| `--review-sheets` | sheets and close-ups for reviewing the cut-outs |
+| `--only FILE` | redo just some images, keeping their output names |
+| `--dry-run --json` | scan and plan only; one JSON event per line for agents |
+| `doctor` | check the machine, and what `auto` would pick right now |
+
 ## Requirements
 
-- macOS, Linux or Windows. CPU by default; CUDA with `onnxruntime-gpu`.
+- Tested on macOS (Apple silicon). Linux and Windows use the same pure-Python
+  stack and are next on the test list. CPU by default; CUDA with `onnxruntime-gpu`.
 - **3.5 GB of free RAM** is enough for product photos: the engine picks the best
   model that fits (about 12 GB gets the best ones). For hair, fur and plants a
   light model is clearly worse, so the agent asks before using one.
