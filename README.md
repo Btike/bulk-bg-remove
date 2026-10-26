@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img src="assets/logo-light.svg" width="200" alt="bulk-bg-remove logo: a pixel-art monitor showing a green vase with a pink tulip on a transparency checkerboard">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/logo-light.svg" width="200" alt="bulk-bg-remove logo: a pixel-art monitor showing a green vase with a pink tulip on a transparency checkerboard">
   </picture>
 </p>
 
@@ -16,13 +16,13 @@
 </p>
 
 <p align="center">
-  <img src="assets/showcase.webp" width="880" alt="Four before-and-after pairs: three friends by train tracks, a black camera on black, a bottle of olive oil and white flowers on white, each cut out onto a transparency checkerboard">
+  <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/showcase.webp" width="880" alt="Four before-and-after pairs: three friends by train tracks, a black camera on black, a bottle of olive oil and white flowers on white, each cut out onto a transparency checkerboard">
 </p>
 
 <p align="center">
   <strong>11 models benchmarked on 80 hard images, judged blind at zoom.</strong><br>
   The default scored <strong>8.6/10 on real product catalogue photos</strong>, the best of the 11, at <strong>3.2 s per photo</strong> on a laptop CPU.<br>
-  <sub>Apple M5, CPU only, one worker. Method, every score and the RAM numbers: <a href="BENCHMARK.md">BENCHMARK.md</a>.</sub>
+  <sub>Apple M5, CPU only, one worker. Method, every score and the RAM numbers: <a href="https://github.com/Btike/bulk-bg-remove/blob/main/BENCHMARK.md">BENCHMARK.md</a>.</sub>
 </p>
 
 > **Pre-release.** Not on PyPI yet; the install lines below go live with v0.1.
@@ -100,4 +100,4 @@ Wikimedia Commons): Priscilla Du Preez, Dennis Klein, margenauer, Hisu lee.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/Btike/bulk-bg-remove/blob/main/LICENSE).
