@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Env / secrets — never commit
+.env
+.env.local
+*.key
+
+# Local runtime output and test images
+storage/
+*-no-bg/
+.playwright-mcp/
+
+# Downloaded model weights
+*.onnx
+.u2net/
+
+# OS
+.DS_Store
+Thumbs.db
