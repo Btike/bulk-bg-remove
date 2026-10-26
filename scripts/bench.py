@@ -90,6 +90,8 @@ def run_config(input_dir: Path, out_dir: Path, model: str, matting: bool, label:
             result.processed = event["processed"]
             result.failed = [f"{Path(f['path']).name}: {f['reason']}" for f in event["failed"]]
             result.warnings = [f"{Path(w['path']).name}: {w['warning']}" for w in event["warnings"]]
+        elif kind == "plan":
+            result.failed += [f"blocked: {b}" for b in event["blockers"]]
         elif kind == "error":
             result.failed.append(event["message"])
     proc.wait()
@@ -169,6 +171,8 @@ def main() -> int:
         write_sheets(result, folder, args.reference)
         results.append(result)
         avg = sum(result.seconds) / len(result.seconds) if result.seconds else 0.0
+        for problem in result.failed:
+            print(f"  ✗ {problem}", flush=True)
         print(f"  {result.processed}/{result.images} ok · {avg:.1f} s/img · "
               f"peak {result.peak_rss_gb:.1f} GB", flush=True)  # fmt: skip
 
