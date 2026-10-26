@@ -108,6 +108,9 @@ def worker_main(
     """Entry point of a worker process."""
     # Ctrl+C is handled by the parent, which lets in-flight images finish cleanly.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    # stdout belongs to the parent (`--json` lines). Libraries such as pymatting
+    # print warnings there, so point this process's stdout at stderr.
+    os.dup2(2, 1)
     # rembg sizes ONNX threads from this; without it N workers oversubscribe the CPU.
     os.environ["OMP_NUM_THREADS"] = str(settings.threads_per_worker)
     try:

@@ -12,7 +12,7 @@ from bulk_bg_remove.bulk.events import Event
 from bulk_bg_remove.bulk.session import BulkOptions, BulkSession
 from bulk_bg_remove.cli import main, run
 from conftest import MakeImage
-from fakes import FAKE_FACTORY, NO_SUBJECT_MARKER
+from fakes import FAKE_FACTORY, NO_SUBJECT_MARKER, NOISY_FACTORY
 
 OPTIONS = BulkOptions(model="fake", model_factory=FAKE_FACTORY, min_free_ram_gb=0.1)
 
@@ -85,19 +85,19 @@ def test_originals_are_never_modified(make_image: MakeImage, tmp_path: Path) -> 
     assert photo.read_bytes() == before
 
 
-def cli_json(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, list[dict]]:
+def cli_json(argv: list[str], capfd: pytest.CaptureFixture[str]) -> tuple[int, list[dict]]:
     code = run(argv, model_factory=FAKE_FACTORY)
-    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line]
+    lines = [json.loads(line) for line in capfd.readouterr().out.splitlines() if line]
     return code, lines
 
 
 def test_cli_json_mode_end_to_end(
-    make_image: MakeImage, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
 ) -> None:
     make_image("in/a.jpg")
     make_image("in/b.jpg")
     code, events = cli_json(
-        [str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"], capsys
+        [str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"], capfd
     )
     assert code == 0
     kinds = [e["type"] for e in events]
@@ -110,47 +110,59 @@ def test_cli_json_mode_end_to_end(
 
 
 def test_cli_requires_yes_when_not_interactive(
-    make_image: MakeImage, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
 ) -> None:
     make_image("in/a.jpg")
-    code, events = cli_json([str(tmp_path / "in"), "--json", "--min-free-ram", "0.1"], capsys)
+    code, events = cli_json([str(tmp_path / "in"), "--json", "--min-free-ram", "0.1"], capfd)
     assert code == 2
     assert events[-1]["type"] == "error"
     assert not (tmp_path / "in-no-bg").exists()
 
 
 def test_cli_dry_run_writes_nothing(
-    make_image: MakeImage, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
 ) -> None:
     make_image("in/a.jpg")
-    code, events = cli_json([str(tmp_path / "in"), "--json", "--dry-run"], capsys)
+    code, events = cli_json([str(tmp_path / "in"), "--json", "--dry-run"], capfd)
     assert code == 0
     assert [e["type"] for e in events] == ["scan", "plan"]
     assert not (tmp_path / "in-no-bg").exists()
 
 
-def test_cli_missing_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    code, events = cli_json([str(tmp_path / "nope"), "--json", "--yes"], capsys)
+def test_cli_missing_path(tmp_path: Path, capfd: pytest.CaptureFixture[str]) -> None:
+    code, events = cli_json([str(tmp_path / "nope"), "--json", "--yes"], capfd)
     assert code == 2
     assert events == [{"type": "error", "at": events[0]["at"], "message": events[0]["message"]}]
 
 
 def test_cli_exit_code_1_when_an_image_fails(
-    make_image: MakeImage, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
 ) -> None:
     make_image("in/good.jpg")
     bad = make_image("in/bad.jpg", size=(400, 300))
     data = bad.read_bytes()
     bad.write_bytes(data[: len(data) * 6 // 10])  # header intact, pixel data truncated
     code, events = cli_json(
-        [str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"], capsys
+        [str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"], capfd
     )
     assert code == 1
     assert len(events[-1]["failed"]) == 1
 
 
-def test_doctor_json(capsys: pytest.CaptureFixture[str]) -> None:
+def test_doctor_json(capfd: pytest.CaptureFixture[str]) -> None:
     main(["doctor", "--json"])
-    report = json.loads(capsys.readouterr().out)
+    report = json.loads(capfd.readouterr().out)
     assert report["checks"]["heic"] is True
     assert report["checks"]["avif"] is True
+
+
+def test_json_stdout_stays_clean_when_libraries_print(
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    make_image("in/a.jpg")
+    argv = [str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"]
+    assert run(argv, model_factory=NOISY_FACTORY) == 0
+    out, err = capfd.readouterr()
+    for line in out.splitlines():
+        json.loads(line)  # every stdout line is an event
+    assert "PERFORMANCE WARNING" in err

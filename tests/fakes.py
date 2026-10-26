@@ -32,3 +32,14 @@ class FakeRemover:
 class FailingRemover:
     def __init__(self, model_name: str) -> None:
         raise RuntimeError("model weights are corrupted")
+
+
+NOISY_FACTORY = "fakes:NoisyRemover"
+
+
+class NoisyRemover(FakeRemover):
+    """Prints to stdout like pymatting does; must never reach `--json` output."""
+
+    def alpha_mask(self, image: Image.Image) -> Image.Image:
+        print("PERFORMANCE WARNING: something a library printed")
+        return super().alpha_mask(image)
