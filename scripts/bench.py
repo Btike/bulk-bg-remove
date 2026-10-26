@@ -1,6 +1,6 @@
 """Benchmark models on a folder of test photos: quality sheets, time and peak RAM.
 
-    uv run python scripts/bench.py INPUT_DIR RESULTS_DIR [--model M ...] [--matting]
+    uv run python scripts/bench.py INPUT_DIR RESULTS_DIR [--model M ...] [--fast-edges]
                                    [--reference REF_DIR]
 
 For every configuration it runs the real CLI (`--json`, one worker), samples
@@ -45,13 +45,13 @@ class Result:
     pairs: list[tuple[Path, Path]] = field(default_factory=list)
 
 
-def run_config(input_dir: Path, out_dir: Path, model: str, matting: bool, label: str) -> Result:
+def run_config(input_dir: Path, out_dir: Path, model: str, fast_edges: bool, label: str) -> Result:
     cmd = [
         sys.executable, "-m", "bulk_bg_remove.cli", str(input_dir), "-o", str(out_dir),
         "--json", "--yes", "--force", "--workers", "1", "--model", model,
     ]  # fmt: skip
-    if matting:
-        cmd.append("--alpha-matting")
+    if fast_edges:
+        cmd.append("--fast-edges")
     result = Result(label)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     root = psutil.Process(proc.pid)
@@ -155,19 +155,23 @@ def main() -> int:
     parser.add_argument("input", type=Path)
     parser.add_argument("results", type=Path)
     parser.add_argument("--model", action="append", dest="models")
-    parser.add_argument("--matting", action="store_true", help="also run each model with matting")
+    parser.add_argument(
+        "--fast-edges", action="store_true", help="also run each model without edge matting"
+    )
     parser.add_argument("--reference", type=Path)
     args = parser.parse_args()
 
     models = args.models or ["birefnet-general-lite"]
-    configs = [(m, False) for m in models] + ([(m, True) for m in models] if args.matting else [])
+    configs = [(m, False) for m in models]
+    if args.fast_edges:
+        configs += [(m, True) for m in models]
     results: list[Result] = []
-    for model, matting in configs:
-        label = model + ("+matting" if matting else "")
+    for model, fast_edges in configs:
+        label = model + ("+fast-edges" if fast_edges else "")
         folder = args.results / label
         folder.mkdir(parents=True, exist_ok=True)
         print(f"running {label} …", flush=True)
-        result = run_config(args.input, folder / "output", model, matting, label)
+        result = run_config(args.input, folder / "output", model, fast_edges, label)
         write_sheets(result, folder, args.reference)
         results.append(result)
         avg = sum(result.seconds) / len(result.seconds) if result.seconds else 0.0
