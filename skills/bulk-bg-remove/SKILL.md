@@ -90,6 +90,8 @@ bulk-bg-remove "<path>" --profile <profile> --review-sheets --json --yes
 ```
 
 - `--yes` only skips the engine's own "Start?" prompt.
+- Read the events from the command's own output; do not redirect it to a
+  file (writing outside the project folder needs extra approval).
 - stdout is pure JSON. stderr may show library warnings; judge the run by the
   exit code and the `finished` event. `worker_loading`/`worker_ready` can repeat
   mid-run when RAM is low (a worker restarting to free memory): not a crash.

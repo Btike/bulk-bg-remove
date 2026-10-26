@@ -156,6 +156,15 @@ reviewers now get flattened close-ups on black and white (`zoom`); and fixes
 now go to a `<name>-retry-no-bg` folder next to the output instead of `/tmp`,
 which needed extra approval to copy from.
 
+A second fresh session with those fixes, from a clean install, did the same
+job with close-ups: **5 reviewers**, 214 cut-outs fine, 20 redone in one
+round with four different fixes (`--profile complex`, `--model
+birefnet-general`, `--clean-edges`, `--model birefnet-portrait`), **8 kept**
+because they were clearly better (long fur, curly and loose hair, a cat, a
+wine glass, three catalogue products), 12 kept as they were and reported.
+Every redone file differed from the first pass; none was copied over without
+a reviewer's `keep: new`.
+
 ## Caveats
 
 - One judge (a vision model) per image, no second opinion: read gaps under
