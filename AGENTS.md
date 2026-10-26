@@ -21,6 +21,10 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - Run: `uv run bulk-bg-remove PATH [--profile KIND] [--yes] [--json] [--clean-edges|--fast-edges]`
   (`--model` defaults to `auto`; `--sample-sheet` with `--dry-run` writes a contact sheet)
 - Check a machine: `uv run bulk-bg-remove doctor [--json]`
+- **CI runs locally**: `scripts/ci.sh` (lock, ruff, mypy, tests on Python 3.11–3.13, wheel
+  build, plugin manifests, Linux tests in Docker when it is running); `--quick` for lint,
+  types and tests only. Hosted CI (`.github/workflows/ci.yml`) is skipped while the repo is
+  private. Run the full script before every commit.
 
 ## Structure
 - `src/bulk_bg_remove/core/` — pure image logic: `io.py`, `matting.py`, `compositing.py`, `pipeline.py`.
@@ -83,5 +87,7 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - CoreML is listed by onnxruntime on macOS but BiRefNet does not compile to it; treat
   it as CPU.
 - 16-bit greyscale must be scaled, not converted: Pillow's `I;16 -> RGB` clips to white.
-- Bench (results and photos stay out of git): `scripts/bench.py INPUT RESULTS [--model M ...]` writes
-  before/after sheets, time per image and peak RAM.
+- Bench: results in `BENCHMARK.md` + `benchmark/` (scores, image credits; photos stay out of
+  git). `scripts/bench.py INPUT RESULTS [--model M ...]` writes
+  before/after sheets, time per image and peak RAM; `scripts/bench_grids.py` makes blind
+  grids (models as letters) and close-ups for judging.

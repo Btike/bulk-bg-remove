@@ -26,3 +26,6 @@ storage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local CI environments and builds
+.ci/

@@ -22,7 +22,7 @@
 <p align="center">
   <strong>11 models benchmarked on 80 hard images, judged blind at zoom.</strong><br>
   The default scored <strong>8.6/10 on real product catalogue photos</strong>, the best of the 11, at <strong>3.2 s per photo</strong> on a laptop CPU.<br>
-  <sub>Apple M5, CPU only, one worker. Method and every score: <a href="skills/bulk-bg-remove/references/models.md">models.md</a>.</sub>
+  <sub>Apple M5, CPU only, one worker. Method, every score and the RAM numbers: <a href="BENCHMARK.md">BENCHMARK.md</a>.</sub>
 </p>
 
 > **Pre-release.** Not on PyPI yet; the install lines below go live with v0.1.
@@ -36,7 +36,9 @@ background from every photo in this folder"* and it:
 2. checks your machine (free RAM, formats) and plans the run,
 3. looks at a sample, picks the best model that fits your free RAM (BiRefNet when there is
    room), and cuts out every image in a queue or in parallel depending on RAM and CPU,
-4. verifies every output and tells you what worked, what failed and why.
+4. has a second agent, with fresh eyes, review every cut-out on black and on white,
+   redo the bad ones with a better setting and keep whichever version is better,
+5. tells you what worked, what failed and why.
 
 Output goes to a new `<name>-no-bg/` folder next to the input. Originals are never
 touched, and the subject's pixels are copied bit for bit: only the alpha channel is new.
