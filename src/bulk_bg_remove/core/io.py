@@ -51,7 +51,7 @@ def save_rgba(
     if image.mode != "RGBA":
         raise ValueError(f"expected RGBA image, got {image.mode}")
 
-    params: dict[str, object] = {}
+    params: dict[str, bytes] = {}
     if icc_profile is not None:
         params["icc_profile"] = icc_profile
 
