@@ -15,9 +15,13 @@ folder) and three tiles:
 
 Open every sheet with your file-reading tool. The tiles are small: hair and
 fur problems often do not show at that size. For **every** cut-out with hair,
-fur, feathers, plants or thin parts, open its output file (the `output` for
-that `n` in the `review_sheets` event) and look at the edges up close before
-calling it fine.
+fur, feathers, plants or thin parts, open its close-up (the `zoom` for that
+`n` in the `review_sheets` event: the cut-out at up to 800 px, on black and on
+white) before calling it fine.
+
+Never judge from the output PNG itself: most viewers, agent file readers
+included, ignore transparency and show the original background, because the
+engine keeps the colour of transparent pixels untouched.
 
 ## What counts as a defect
 
@@ -53,7 +57,7 @@ propose the next one in the same row, or `ask`.
 After a second pass you get the new sheets and the earlier ones. The `n`
 numbers start again at 1 on the new sheets: match images by their `label`
 (the output path), not by `n`. For each image that was redone, compare the
-two cut-outs (open both output files) and say which is better. The new one wins only if it is clearly better; otherwise
+two cut-outs (open both close-ups, `zoom`) and say which is better. The new one wins only if it is clearly better; otherwise
 keep the first.
 
 ```json

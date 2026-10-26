@@ -297,6 +297,7 @@ class BulkSession:
                                     "label": e.label,
                                     "source": str(e.source),
                                     "output": str(e.output),
+                                    "zoom": str(e.zoom) if e.zoom else None,
                                 }
                                 for e in sheet.entries
                             ],

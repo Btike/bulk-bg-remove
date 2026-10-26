@@ -64,6 +64,11 @@ def write_sample_sheet(paths: Sequence[Path], size: int = SAMPLE_SIZE) -> Sample
 REVIEW_TILE = 220
 REVIEW_PER_SHEET = 12
 REVIEW_PER_ROW = 2
+# Close-ups: the cut-out at up to 800 px, on black and on white, as a JPEG. A
+# reviewer must look at these, not at the output PNG: many image viewers (agent
+# file readers included) drop the alpha channel and show the original
+# background, because the engine keeps the RGB of transparent pixels untouched.
+ZOOM_SIZE = 800
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +77,7 @@ class ReviewEntry:
     label: str  # the output path relative to the output folder: stable across runs
     source: Path
     output: Path
+    zoom: Path | None  # close-up on black and on white (None if it could not be made)
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +107,19 @@ def _review_tiles(source: Path, output: Path) -> list[Image.Image]:
     return [first, _on("black", cutout), _on("white", cutout)]
 
 
+def _write_zoom(output: Path, destination: Path) -> None:
+    with Image.open(output) as opened:
+        cutout = opened.convert("RGBA")
+    cutout.thumbnail((ZOOM_SIZE, ZOOM_SIZE), Image.Resampling.LANCZOS)
+    width, height = cutout.size
+    zoom = Image.new("RGB", (2 * width + 12, height), (128, 128, 128))
+    for column, background in enumerate(("black", "white")):
+        panel = Image.new("RGB", (width, height), background)
+        panel.paste(cutout, (0, 0), cutout)
+        zoom.paste(panel, (column * (width + 12), 0))
+    zoom.save(destination, "JPEG", quality=90)
+
+
 def _label(output: Path, output_root: Path) -> str:
     try:
         return output.relative_to(output_root).as_posix()
@@ -125,14 +144,17 @@ def write_review_sheets(pairs: Sequence[tuple[Path, Path]], output_root: Path) -
             label = _label(output, output_root)
             x, y = (index % REVIEW_PER_ROW) * entry_w, (index // REVIEW_PER_ROW) * entry_h
             draw.text((x + 4, y + 3), f"#{number}  {label[-70:]}", fill="white")
+            zoom: Path | None = None
             try:
                 tiles = _review_tiles(source, output)
+                _write_zoom(output, folder / f"zoom-{number}.jpg")
+                zoom = folder / f"zoom-{number}.jpg"
             except Exception:  # noqa: BLE001 — show the gap, keep the sheet
                 draw.text((x + 8, y + entry_h // 2), "unreadable", fill="red")
                 tiles = []
             for column, tile in enumerate(tiles):
                 sheet.paste(tile, (x + column * (REVIEW_TILE + 4), y + LABEL_HEIGHT))
-            entries.append(ReviewEntry(number, label, source, output))
+            entries.append(ReviewEntry(number, label, source, output, zoom))
         path = folder / f"review-{start // REVIEW_PER_SHEET + 1}.png"
         sheet.save(path)
         sheets.append(ReviewSheet(path, tuple(entries)))

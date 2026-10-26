@@ -130,6 +130,32 @@ Because a second pass can make a good cut-out worse, the skill runs fixes into
 a separate folder and keeps the new cut-out only when the reviewer judges it
 better.
 
+## End-to-end: a fresh agent, no context
+
+A new Claude Code session, with only the plugin installed and no other
+context, got one request: *"use the bulk-bg-remove skill to remove the
+background from every photo in this folder"*, on a 248-image test folder (the
+benchmark sets plus 151 catalogue photos and a deliberately messy folder). It
+was allowed to run the engine and to copy files, nothing else.
+
+- It installed the engine, looked at the sample sheet, picked `uniform` for the
+  folder and ran it in the background: **247 of 248 done**; the one failure was
+  a truncated file, reported as damaged. Non-images, a GIF, a hidden file and an
+  earlier output folder were listed as skipped, each with its reason.
+- It split 21 review sheets across **4 `bg-reviewer` subagents** in parallel,
+  redid the flagged images in a side folder, had a fresh reviewer compare old
+  and new, and kept the new version for 4 of them (a handler's arm gone from a
+  dog, a wine glass stem recovered, a cutter tip and a jug shoulder restored).
+- It reported what it could not fix (a colour tint on a dandelion and a plant,
+  two see-through metal handles) and what the user should decide (placeholder
+  "no photo" images, scenes with no clear subject, a 180 px original).
+
+What it surfaced, and what changed since: agent file readers ignore
+transparency and show the original background in the output PNG, so
+reviewers now get flattened close-ups on black and white (`zoom`); and fixes
+now go to a `<name>-retry-no-bg` folder next to the output instead of `/tmp`,
+which needed extra approval to copy from.
+
 ## Caveats
 
 - One judge (a vision model) per image, no second opinion: read gaps under

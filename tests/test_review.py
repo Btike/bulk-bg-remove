@@ -36,7 +36,12 @@ def test_review_sheets_list_every_cut_out_once(make_image: MakeImage, tmp_path: 
     assert isinstance(sheets, list) and len(sheets) == 2  # 12 per sheet
     numbers = [img["n"] for sheet in sheets for img in sheet["images"]]  # type: ignore[index]
     assert numbers == list(range(1, 15))
-    assert sheets[0]["images"][0]["label"] == "00.png"  # type: ignore[index]
+    first = sheets[0]["images"][0]  # type: ignore[index]
+    assert first["label"] == "00.png"
+    with Image.open(first["zoom"]) as zoom:  # on black | on white, alpha flattened
+        assert zoom.mode == "RGB" and zoom.format == "JPEG"
+        left, right = zoom.getpixel((0, 0)), zoom.getpixel((zoom.width - 1, 0))
+    assert sum(left) < 30 and sum(right) > 700  # background corners: black, then white
     for sheet in sheets:
         path = Path(sheet["path"])  # type: ignore[index]
         assert path.is_file() and tmp_path not in path.parents

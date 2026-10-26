@@ -28,13 +28,19 @@ engine is the `bulk-bg-remove` command: it scans, picks a model that fits the
 free RAM, plans the run, processes the images and verifies every output. You
 drive it with `--json` (one JSON object per line) and report back.
 
+Run every command on its own: no `;`, `&&` or pipes. Harnesses approve shell
+commands one at a time, and this skill pre-approves only `bulk-bg-remove …`
+and `uv tool install|upgrade bulk-bg-remove`, so a chained command stops for
+approval (or fails in a session nobody is watching).
+
 ## 1. Make sure the engine is installed
 
 ```bash
 bulk-bg-remove --version
 ```
 
-- Not found: `uv tool install bulk-bg-remove`.
+- Not found: run `uv tool install bulk-bg-remove` straight away (no need to
+  check uv first: if uv is missing, that command says so).
 - No `uv` either: stop and ask the user to install uv
   (https://docs.astral.sh/uv/getting-started/installation/), then retry. Do not
   run a remote install script without the user's OK. `pipx install bulk-bg-remove`
@@ -136,17 +142,20 @@ each showing up to 12 cut-outs numbered `#n`, as original | on black | on white.
 
 1. **Get a fresh pair of eyes.** If you can start a subagent (Claude Code: the
    `bg-reviewer` agent this plugin ships, or any subagent; Codex: a sub-agent),
-   give it the sheet paths, the `review_sheets` event and the full text of
+   give it the sheet paths, the `review_sheets` event (it has each image's
+   `zoom` close-up) and the full text of
    `references/reviewer.md`. It did not run the batch, so it sees what is
    there, not what you expect. With more than 4 sheets, split them across
    several reviewers in parallel: looking costs no engine RAM. If you cannot
    start one, review the sheets yourself with `references/reviewer.md`.
 2. **Fix once, on the side.** For each `fix`, take the `source` of its `n`
-   from the `review_sheets` event and run again into a new temporary folder
-   outside `<path>`, one run per set of flags, never two at once:
+   from the `review_sheets` event and run again into a retry folder next to
+   the output, named so later scans skip it (`products/` → output
+   `products-no-bg/`, retries `products-retry-no-bg/`), one run per set of
+   flags, never two at once:
 
    ```bash
-   bulk-bg-remove "<path>" -o "<temp folder>" --profile <profile> --only <source> [--only <source> ...] <fix flags> --review-sheets --json --yes
+   bulk-bg-remove "<path>" -o "<name>-retry-no-bg" --profile <profile> --only <source> [--only <source> ...] <fix flags> --review-sheets --json --yes
    ```
 
    `--only` takes the absolute `source`, a path relative to `<path>`, or a bare
@@ -159,7 +168,7 @@ each showing up to 12 cut-outs numbered `#n`, as original | on black | on white.
    when the reviewer says `keep: new`; a
    second pass can make a good cut-out worse. One round only: anything still
    wrong, and every `ask`, goes in your report with the sheet path so the user
-   can see it.
+   can see it. Mention the retry folder: the user can delete it.
 
 Review by default; skip it only if the user wants speed over checking or says
 not to. The sheets cover the images this run processed: on a re-run where
