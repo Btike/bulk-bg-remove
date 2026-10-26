@@ -24,12 +24,13 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.queues import Queue
 from pathlib import Path
 
-from ..core.matting import EdgeMode
+from ..core.matting import MATTING_MAX_GB, MATTING_MIN_GB, EdgeMode, fullres_matting_gb
 from ..core.pipeline import Stage, process_image
 from ..domain import OutputFormat
 from ..engine.model import MaskModel
-from .events import Event, EventSink
-from .scan import available_ram_gb
+from .events import Event, EventSink, JSONObject
+from .plan import RESERVE_RAM_GB
+from .scan import available_ram_gb, process_rss_gb
 
 DEFAULT_FACTORY = "bulk_bg_remove.engine.model:BackgroundRemover"
 
@@ -60,6 +61,10 @@ class RunSettings:
     pause_below_gb: float
     pause_timeout_s: float = 600.0
     model_factory: str = DEFAULT_FACTORY
+    # Restart a worker whose memory grew past this after an image (None: never).
+    # Images of different sizes fragment the heap, so a long-lived worker's RSS
+    # creeps up to ~3x a single image's peak; a fresh process starts clean.
+    recycle_above_gb: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +104,23 @@ def _stage_reporter(
     return report
 
 
+def _matting_budget_gb(megapixels: float, edges: EdgeMode) -> float:
+    """What edge matting may use now: free RAM minus the reserve and the
+    full-resolution step, within its bounds."""
+    free = available_ram_gb() - RESERVE_RAM_GB - fullres_matting_gb(megapixels, edges)
+    return min(MATTING_MAX_GB, max(MATTING_MIN_GB, free))
+
+
+def _should_retire(settings: RunSettings) -> bool:
+    limit = settings.recycle_above_gb
+    if limit is None:
+        return False
+    try:
+        return process_rss_gb() > limit
+    except Exception:  # noqa: BLE001 — a failed probe must not lose a finished image
+        return False
+
+
 def worker_main(
     worker: int,
     tasks: Queue[tuple[int, str, str] | None],
@@ -134,16 +156,24 @@ def worker_main(
                 output_format=settings.output_format,
                 edges=settings.edges,
                 on_stage=_stage_reporter(messages, worker, job_id),
+                matting_budget_gb=_matting_budget_gb,
             )
             os.replace(temp, final)
         except Exception as exc:  # noqa: BLE001 — one bad file must not stop the batch
             temp.unlink(missing_ok=True)
             reason = f"{type(exc).__name__}: {exc}"
-            messages.put(("failed", worker, job_id, reason, time.monotonic() - started))
+            retire = _should_retire(settings)
+            elapsed = time.monotonic() - started
+            messages.put(("failed", worker, job_id, reason, elapsed, retire))
         else:
             elapsed = time.monotonic() - started
             note = result.note or ""
-            messages.put(("done", worker, job_id, result.width, result.height, elapsed, note))
+            retire = _should_retire(settings)
+            messages.put(
+                ("done", worker, job_id, result.width, result.height, elapsed, note, retire)
+            )
+        if retire:
+            return  # the runner starts a fresh process for this worker slot
 
 
 class Runner:
@@ -170,22 +200,42 @@ class Runner:
         """Stop handing out new images; images already in progress finish."""
         self._cancel.set()
 
+    def _finished(
+        self, kind: str, job: Job, outcomes: dict[int, JobOutcome], data: JSONObject
+    ) -> None:
+        """job_done / job_failed, with the source and overall progress for agents."""
+        self._emit(
+            Event(
+                kind,
+                {
+                    "job": job.id,
+                    **data,
+                    "source": str(job.source),
+                    "done": len(outcomes),
+                    "total": len(self._jobs),
+                },
+            )
+        )
+
     def run(self) -> list[JobOutcome]:
         ctx = mp.get_context("spawn")
         messages: Queue[WorkerMessage] = ctx.Queue()
         count = max(1, min(self._settings.workers, len(self._jobs)))
         inboxes: list[Queue[tuple[int, str, str] | None]] = [ctx.Queue() for _ in range(count)]
-        processes: list[BaseProcess] = []
-        for worker, inbox in enumerate(inboxes):
+
+        def start(worker: int) -> BaseProcess:
             process = ctx.Process(
                 target=worker_main,
-                args=(worker, inbox, messages, self._settings),
+                args=(worker, inboxes[worker], messages, self._settings),
                 name=f"bulk-bg-remove-worker-{worker}",
                 daemon=True,
             )
             process.start()
-            processes.append(process)
             self._emit(Event("worker_loading", {"worker": worker}))
+            return process
+
+        processes: list[BaseProcess] = [start(worker) for worker in range(count)]
+        retiring: set[int] = set()
 
         outcomes: dict[int, JobOutcome] = {}
         idle: list[int] = []
@@ -203,7 +253,7 @@ class Runner:
             while self._pending:
                 job = self._pending.popleft()
                 outcomes[job.id] = JobOutcome(job, ok=False, seconds=0.0, reason=reason)
-                self._emit(Event("job_failed", {"job": job.id, "worker": None, "reason": reason}))
+                self._finished("job_failed", job, outcomes, {"worker": None, "reason": reason})
 
         try:
             while alive:
@@ -212,7 +262,18 @@ class Runner:
                 except queue.Empty:
                     message = None
                 if message is not None:
-                    self._handle(message, idle, busy, alive, outcomes)
+                    self._handle(message, idle, busy, alive, outcomes, retiring)
+                for worker in sorted(retiring):
+                    retiring.discard(worker)
+                    old = processes[worker]
+                    old.join(timeout=30)
+                    if old.is_alive():
+                        old.terminate()
+                        old.join(timeout=5)
+                    if self._pending and not self._cancel.is_set():
+                        processes[worker] = start(worker)
+                    else:
+                        alive.discard(worker)  # nothing left for it to do
 
                 # A worker that died without reporting (e.g. killed by the OS for memory).
                 for worker in list(alive):
@@ -224,11 +285,8 @@ class Runner:
                         if job is not None:
                             reason = "worker process crashed (out of memory?)"
                             outcomes[job.id] = JobOutcome(job, ok=False, seconds=0.0, reason=reason)
-                            self._emit(
-                                Event(
-                                    "job_failed",
-                                    {"job": job.id, "worker": worker, "reason": reason},
-                                )
+                            self._finished(
+                                "job_failed", job, outcomes, {"worker": worker, "reason": reason}
                             )
 
                 if self._cancel.is_set() and self._pending:
@@ -297,6 +355,7 @@ class Runner:
         busy: dict[int, Job],
         alive: set[int],
         outcomes: dict[int, JobOutcome],
+        retiring: set[int],
     ) -> None:
         kind, worker = str(message[0]), int(message[1])
         if kind == "ready":
@@ -321,30 +380,27 @@ class Runner:
         elif kind in ("done", "failed"):
             job = self._jobs[int(message[2])]
             busy.pop(worker, None)
-            idle.append(worker)
+            if bool(message[-1]):
+                retiring.add(worker)  # it exits now; run() starts its replacement
+            else:
+                idle.append(worker)
             if kind == "done":
                 width, height, seconds = int(message[3]), int(message[4]), float(message[5])
                 note = str(message[6]) or None
                 outcomes[job.id] = JobOutcome(job, True, seconds, width, height, note=note)
-                self._emit(
-                    Event(
-                        "job_done",
-                        {
-                            "job": job.id,
-                            "worker": worker,
-                            "width": width,
-                            "height": height,
-                            "seconds": round(seconds, 2),
-                            "note": note,
-                        },
-                    )
+                self._finished(
+                    "job_done",
+                    job,
+                    outcomes,
+                    {
+                        "worker": worker,
+                        "width": width,
+                        "height": height,
+                        "seconds": round(seconds, 2),
+                        "note": note,
+                    },
                 )
             else:
                 reason, seconds = str(message[3]), float(message[4])
                 outcomes[job.id] = JobOutcome(job, False, seconds, reason=reason)
-                self._emit(
-                    Event(
-                        "job_failed",
-                        {"job": job.id, "worker": worker, "reason": reason},
-                    )
-                )
+                self._finished("job_failed", job, outcomes, {"worker": worker, "reason": reason})

@@ -38,11 +38,14 @@ def process_image(
     output_format: OutputFormat,
     edges: EdgeMode = EdgeMode.MATTE,
     on_stage: Callable[[Stage], None] | None = None,
+    matting_budget_gb: Callable[[float, EdgeMode], float] | None = None,
 ) -> ProcessResult:
     """Remove the background from one image.
 
     The subject's RGB is copied verbatim; only in `EdgeMode.CLEAN` are the
     semi-transparent edge pixels recoloured to remove the old background's halo.
+    `matting_budget_gb(megapixels, edges)` is asked right before edge matting,
+    once the model has run, so it can size the matting to the RAM actually free.
     """
 
     def stage(value: Stage) -> None:
@@ -54,7 +57,12 @@ def process_image(
     stage(Stage.REMOVING)
     mask = remover.alpha_mask(source.rgb)
     stage(Stage.REFINING)
-    refined = refine_edges(source.rgb, mask, edges)
+    if matting_budget_gb is None:
+        refined = refine_edges(source.rgb, mask, edges)
+    else:
+        megapixels = source.rgb.width * source.rgb.height / 1e6
+        budget = matting_budget_gb(megapixels, edges)
+        refined = refine_edges(source.rgb, mask, edges, budget_gb=budget)
     stage(Stage.COMPOSITING)
     rgba = composite_rgba(refined.rgb, refined.alpha)
     stage(Stage.SAVING)

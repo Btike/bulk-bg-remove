@@ -9,7 +9,7 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - **Python 3.11–3.13**, managed by **uv** (`.python-version` pins 3.12 for development)
 - **rembg** (ONNX Runtime) with **BiRefNet** (MIT) — default model `birefnet-general-lite`
 - **Pillow + numpy** — imaging; **pillow-heif** for HEIC/HEIF; **pymatting + scipy** — edge matting
-- **FastAPI + Uvicorn** — local UI server _(planned)_
+- **FastAPI + Uvicorn** — local UI server
 - **rich** — terminal logs · **psutil** — capacity probes
 - **pytest · ruff · mypy (strict)** — quality gates
 
@@ -28,7 +28,10 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - `src/bulk_bg_remove/domain.py` — shared domain types.
 - `src/bulk_bg_remove/bulk/` — the four phases: scan → plan → run → verify, plus `session.py`
   (shared by CLI and UI) and `events.py` (the JSON event contract)
-- `src/bulk_bg_remove/ui/` — local server + single-file page _(planned)_
+- `src/bulk_bg_remove/ui/` — local server + single-file page
+- `skills/bulk-bg-remove/` — the agent skill (`SKILL.md` + `references/`); plugin manifests in
+  `.claude-plugin/`, `.codex-plugin/` and `.agents/plugins/`. The `--json` event contract is
+  documented in `references/json-events.md`: update it with any event change.
 - `tests/` — unit tests for pure logic, integration tests with a fake model.
 
 ## Quality contract (do not break)
@@ -49,10 +52,20 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 
 ## Gotchas
 - rembg downloads model weights on first use to `~/.u2net/` (needs network once, ~224 MB).
-- RAM is the real limit. Measured peak per worker (CPU, tuned session):
-  `birefnet-general-lite` ~9.5 GB · `birefnet-general` ~11.8 GB · `isnet-general-use`
-  ~2.6 GB. It is almost constant per model because BiRefNet always infers at 1024×1024.
-  The planner refuses to start below peak + image buffers + 1.5 GB reserve (~11 GB for lite).
+- RAM is the real limit. Measured peak per worker without matting (CPU, tuned session):
+  `birefnet-general-lite` 9.4 GB · other BiRefNet variants 11.6 · `isnet-general-use` 2.4 ·
+  `u2net` 1.8 · `silueta` 0.7 (all 11 in `bulk/plan.py`). Nearly constant per model: each
+  model infers at a fixed size whatever the photo size.
+- Edge matting adds ~0.35 GB per matted MP plus ~2.3 GB per million uncertain-band pixels
+  (a 4 MP wire chair: 4.9 GB; a product shot: 1.8 GB). `core/matting.py` shrinks the matting
+  resolution to fit a budget the worker sets from free RAM (0.6–3 GB), re-measuring after each
+  step (the eroded band shrinks slower than the area). Scaling the matte back to full
+  resolution costs ~0.03 GB/MP more (~0.065 with `--clean-edges`), outside that budget. The
+  start floor counts 0.6 GB of matting (lite: ~12 GB for 12 MP photos); parallel sizing, 3 GB.
+- A long-lived worker's RSS creeps to ~3x one image's peak (heap fragmentation from images
+  of different sizes; `gc` and malloc pressure relief do not help). Workers restart when RSS
+  ends an image more than 1 GB above the model's peak (`recycle_above_gb`). Measured on the
+  edge-heavy bench: lite 15.7 → 12.3 GB, silueta 9.1 → 3.9 GB.
 - On CPU a second worker adds only ~25% throughput (ONNX already uses every core);
   more workers are slower. `OMP_NUM_THREADS` sets intra-op threads per worker.
 - `rembg.remove(..., only_mask=True)` silently ignores `alpha_matting`. Edge matting is

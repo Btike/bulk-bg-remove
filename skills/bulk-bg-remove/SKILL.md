@@ -13,7 +13,7 @@ license: MIT
 compatibility: >
   Needs uv (installs the engine and a matching Python 3.11-3.13 by itself).
   macOS, Linux and Windows; runs on CPU, or CUDA with onnxruntime-gpu. The
-  default model needs about 11 GB of free RAM and downloads once (~220 MB).
+  default model needs about 12 GB of free RAM and downloads once (~220 MB).
 allowed-tools: Bash(bulk-bg-remove:*) Bash(uv tool install bulk-bg-remove*) Bash(uv tool upgrade bulk-bg-remove*)
 metadata:
   version: "0.1.0"
@@ -97,7 +97,7 @@ choices:
 
 - **Not enough free RAM** (`free RAM X GB is below the Y GB this model needs`):
   ask the user to close apps and retry, or offer a lighter model
-  (`--model isnet-general-use`, ~3 GB) and say plainly that hair, fur and
+  (`--model isnet-general-use`, ~5 GB free needed) and say plainly that hair, fur and
   thin edges come out coarser. Only switch models if the user agrees.
 - **Not enough disk**: say how much is needed and where.
 - **No supported images**: list what was skipped and why.

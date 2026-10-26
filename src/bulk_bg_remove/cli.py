@@ -21,7 +21,7 @@ from rich.prompt import Confirm
 from . import __version__
 from .bulk.events import Event
 from .bulk.runner import DEFAULT_FACTORY
-from .bulk.session import BulkOptions, BulkSession
+from .bulk.session import BulkOptions, BulkSession, ModelUnavailable
 from .console import JsonReporter, TerminalReporter
 from .core.matting import EdgeMode
 from .domain import OutputFormat
@@ -157,6 +157,13 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         else:
             emit(Event("interrupted", {}))
         return EXIT_INTERRUPTED
+    except ModelUnavailable as exc:
+        if terminal:
+            terminal.close()
+            terminal.line(f"[bold red]✗ {exc}[/]")
+        else:
+            emit(Event("error", {"message": str(exc)}))
+        return EXIT_FAILED
     finally:
         if terminal:
             terminal.close()

@@ -84,7 +84,7 @@ bulk-bg-remove                              # opens a drag-and-drop page in your
 ## Requirements
 
 - macOS, Linux or Windows. CPU by default; CUDA with `onnxruntime-gpu`.
-- About **11 GB of free RAM** for the default model. Less RAM works with lighter
+- About **12 GB of free RAM** for the default model. Less RAM works with lighter
   models; the agent picks one that fits and tells you the trade-off.
 - The model downloads once (~220 MB). After that everything runs offline.
 

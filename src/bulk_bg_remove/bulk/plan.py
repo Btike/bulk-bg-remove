@@ -13,30 +13,42 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ..core.matting import EdgeMode
+from ..core.matting import MATTING_MAX_GB, MATTING_MIN_GB, EdgeMode, fullres_matting_gb
 from ..domain import OutputFormat
 from .events import JSONObject
 from .scan import Hardware, Inventory
 
-# Peak RSS per worker during inference (model + ONNX activations at 1024x1024),
-# measured on CPU with the engine's session options. Roughly constant per model:
-# BiRefNet always infers at 1024x1024 whatever the photo size.
+# Peak RSS per worker during inference (model + ONNX activations), measured on
+# CPU with the engine's session options and edge matting off. Roughly constant
+# per model: each model infers at a fixed size whatever the photo size.
 MODEL_PEAK_GB: dict[str, float] = {
-    "birefnet-general-lite": 9.5,
-    "birefnet-general": 11.8,
-    "isnet-general-use": 2.6,
-    "u2net": 1.9,
+    "birefnet-general-lite": 9.4,
+    "birefnet-general": 11.6,
+    "birefnet-portrait": 11.6,
+    "birefnet-dis": 11.6,
+    "birefnet-hrsod": 11.6,
+    "birefnet-massive": 11.6,
+    "isnet-general-use": 2.4,
+    "isnet-anime": 2.2,
+    "u2net": 1.8,
+    "u2net_human_seg": 1.8,
+    "silueta": 0.7,
 }
 UNKNOWN_MODEL_PEAK_GB = 12.0
 
-# Full-resolution buffers per image (RGB, mask, RGBA), and the extra for matting.
+# Full-resolution buffers per image (RGB, mask, RGBA).
 IMAGE_GB_PER_MEGAPIXEL = 0.02
-MATTING_GB_PER_MEGAPIXEL = 0.05
+# Edge matting sizes itself to the RAM that is free when it runs, between
+# MATTING_MIN_GB and MATTING_MAX_GB (see core/matting.py). The start floor
+# counts the minimum; extra parallel workers must leave room for the maximum.
 
 RESERVE_RAM_GB = 1.5  # kept free for the OS and other apps
+# A worker that keeps more than this above its model's peak after an image is
+# restarted, so heap fragmentation never stacks up across a long batch.
+RECYCLE_MARGIN_GB = 1.0
 # Each extra parallel worker must also leave this much headroom: two BiRefNet
-# lite workers need ~24 GB free before the run goes parallel.
-PARALLEL_HEADROOM_GB = 3.0
+# lite workers (each sized for full matting) need ~28 GB free to go parallel.
+PARALLEL_HEADROOM_GB = 1.0
 DEFAULT_MAX_WORKERS = 4
 
 # Lossless RGBA output size per pixel (photos; conservative).
@@ -47,12 +59,20 @@ OUTPUT_BYTES_PER_PIXEL: dict[OutputFormat, float] = {
 DISK_MARGIN = 1.2
 DISK_HEADROOM_GB = 0.2
 
-# Measured seconds per image on an Apple M5 CPU; the live ETA refines this.
+# Measured seconds per image on an Apple M5 CPU (product photos, matting on);
+# the live ETA refines this.
 SECONDS_PER_IMAGE: dict[str, float] = {
-    "birefnet-general-lite": 3.5,
-    "birefnet-general": 5.8,
-    "isnet-general-use": 1.2,
-    "u2net": 0.8,
+    "birefnet-general-lite": 3.2,
+    "birefnet-general": 5.6,
+    "birefnet-portrait": 5.5,
+    "birefnet-dis": 5.5,
+    "birefnet-hrsod": 5.6,
+    "birefnet-massive": 5.6,
+    "isnet-general-use": 1.3,
+    "isnet-anime": 1.2,
+    "u2net": 0.5,
+    "u2net_human_seg": 0.8,
+    "silueta": 0.4,
 }
 UNKNOWN_MODEL_SECONDS = 6.0
 CUDA_SPEEDUP = 5.0
@@ -117,11 +137,17 @@ def model_peak_gb(model: str) -> float:
     return MODEL_PEAK_GB.get(model, UNKNOWN_MODEL_PEAK_GB)
 
 
-def image_peak_gb(max_megapixels: float, edges: EdgeMode) -> float:
-    per_mp = IMAGE_GB_PER_MEGAPIXEL
-    if edges is not EdgeMode.MASK:
-        per_mp += MATTING_GB_PER_MEGAPIXEL
-    return max(0.2, max_megapixels * per_mp)
+def image_peak_gb(max_megapixels: float, edges: EdgeMode, *, full_matting: bool = False) -> float:
+    """RAM for one image on top of the model: buffers plus edge matting.
+
+    The start floor counts matting at its minimum (it shrinks to fit); sizing
+    extra parallel workers counts it at its maximum.
+    """
+    buffers = max(0.2, max_megapixels * IMAGE_GB_PER_MEGAPIXEL)
+    if edges is EdgeMode.MASK:
+        return buffers
+    solver = MATTING_MAX_GB if full_matting else MATTING_MIN_GB
+    return buffers + solver + fullres_matting_gb(max_megapixels, edges)
 
 
 def minimum_free_ram_gb(
@@ -153,8 +179,10 @@ def make_plan(
     warnings: list[str] = []
 
     peak = image_peak_gb(inventory.max_megapixels, settings.edges)
-    per_worker = model_peak_gb(settings.model) + peak
-    floor = settings.min_free_ram_gb or per_worker + RESERVE_RAM_GB
+    floor = settings.min_free_ram_gb or model_peak_gb(settings.model) + peak + RESERVE_RAM_GB
+    # A worker with room for full-resolution matting: what each parallel worker needs.
+    full_peak = image_peak_gb(inventory.max_megapixels, settings.edges, full_matting=True)
+    per_worker = model_peak_gb(settings.model) + full_peak
 
     spare = hardware.ram_available_gb - (per_worker + RESERVE_RAM_GB)
     by_ram = 1 + max(0, math.floor(spare / (per_worker + PARALLEL_HEADROOM_GB)))
@@ -205,7 +233,7 @@ def make_plan(
         threads_per_worker=threads,
         binding_limit=binding_limit,
         ram_per_worker_gb=per_worker,
-        image_peak_gb=peak,
+        image_peak_gb=full_peak,
         min_free_ram_gb=floor,
         pause_below_gb=RESERVE_RAM_GB,
         estimated_output_gb=output_gb,

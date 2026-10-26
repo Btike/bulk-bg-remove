@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -47,9 +48,22 @@ def _duration(seconds: float) -> str:
 class JsonReporter:
     """One JSON object per line on stdout — the contract agents parse."""
 
+    def __init__(self) -> None:
+        self._reader_gone = False
+
     def __call__(self, event: Event) -> None:
-        sys.stdout.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
-        sys.stdout.flush()
+        if self._reader_gone:
+            return
+        try:
+            sys.stdout.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+        except BrokenPipeError:
+            # The reader closed the pipe (e.g. `| head`). Keep working quietly and
+            # point stdout at devnull so the interpreter's final flush does not fail.
+            self._reader_gone = True
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+            os.close(devnull)
 
 
 class TerminalReporter:

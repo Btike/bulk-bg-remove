@@ -14,7 +14,7 @@ from pathlib import Path
 
 import psutil
 
-from ..formats import sniff
+from ..formats import SUPPORTED_EXTENSIONS, sniff
 from ..paths import is_output_dir
 from .events import JSONObject, JSONValue
 
@@ -46,6 +46,10 @@ class Hardware:
 
 def available_ram_gb() -> float:
     return float(psutil.virtual_memory().available) / GB
+
+
+def process_rss_gb() -> float:
+    return float(psutil.Process().memory_info().rss) / GB
 
 
 def _sysctl(key: str) -> str | None:
@@ -150,29 +154,46 @@ class Inventory:
         }
 
 
-def _walk(root: Path) -> Iterator[Path]:
-    """Every visible file under root. Skips hidden and `-no-bg` folders; no symlinked dirs."""
+def _looks_like_image(name: str) -> bool:
+    return Path(name).suffix.lower() in SUPPORTED_EXTENSIONS
+
+
+def _walk(root: Path, skipped: list[Skipped]) -> Iterator[Path]:
+    """Every visible file under root; no symlinked dirs.
+
+    Hidden folders are skipped silently (tooling: .git, .venv). Earlier `-no-bg`
+    output folders and hidden files named like images are skipped *and reported*,
+    so an agent never claims "all photos" while some were left out.
+    """
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(
-            d for d in dirnames if not d.startswith(".") and not is_output_dir(Path(d))
-        )
+        kept = []
+        for d in sorted(dirnames):
+            if d.startswith("."):
+                continue
+            if is_output_dir(Path(d)):
+                skipped.append(Skipped(Path(dirpath) / d, "earlier output folder (-no-bg)"))
+                continue
+            kept.append(d)
+        dirnames[:] = kept
         for name in sorted(filenames):
             if not name.startswith("."):
                 yield Path(dirpath) / name
+            elif not name.startswith("._") and _looks_like_image(name):
+                skipped.append(Skipped(Path(dirpath) / name, "hidden file"))
 
 
 def discover(input_path: Path) -> Inventory:
     """Find every supported image in a file or folder (recursively), by content."""
     path = input_path.expanduser().resolve()
+    skipped: list[Skipped] = []
     if path.is_file():
         root, candidates = path.parent, [path]
     elif path.is_dir():
-        root, candidates = path, list(_walk(path))
+        root, candidates = path, list(_walk(path, skipped))
     else:
         raise FileNotFoundError(f"no such file or folder: {input_path}")
 
     sources: list[ImageSource] = []
-    skipped: list[Skipped] = []
     for candidate in candidates:
         result = sniff(candidate)
         if result.reason is not None or result.format is None:

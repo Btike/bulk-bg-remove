@@ -61,3 +61,57 @@ def test_large_images_are_matted_at_reduced_resolution(monkeypatch: pytest.Monke
     assert result.alpha.size == (200, 200)
     assert result.rgb.size == (200, 200)
     assert np.asarray(result.alpha)[100, 100] == 255
+
+
+def test_matting_shrinks_to_fit_its_ram_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    rgb, mask = scene(400)
+    shapes: list[tuple[int, ...]] = []
+    real = matting.estimate_alpha_cf
+
+    def spy(image: np.ndarray, trimap: np.ndarray) -> np.ndarray:
+        shapes.append(trimap.shape)
+        return real(image, trimap)
+
+    monkeypatch.setattr(matting, "estimate_alpha_cf", spy)
+    # Make this small scene "cost" ~8 GB so any budget forces a downscale.
+    monkeypatch.setattr(matting, "MATTING_GB_PER_MEGAPIXEL", 50.0)
+
+    plenty = refine_edges(rgb, mask, EdgeMode.MATTE)
+    tight = refine_edges(rgb, mask, EdgeMode.MATTE, budget_gb=0.1)
+
+    assert shapes[0][0] < 400  # even the default budget caps it
+    assert shapes[1][0] < shapes[0][0]  # a tighter budget shrinks it further
+    assert plenty.note is None  # within the normal budget: nothing to report
+    assert tight.note is not None and "to fit free RAM" in tight.note
+    assert tight.alpha.size == rgb.size  # the alpha is always full resolution
+    assert tight.rgb is rgb  # matte mode never touches RGB
+
+
+def test_shrinking_re_measures_until_the_budget_holds(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A wire grid: its eroded band does not shrink with the area, the hard case.
+    wire = np.zeros((900, 1200), np.uint8)
+    for i in range(0, 1200, 40):
+        wire[:, i : i + 3] = 255
+    for j in range(0, 900, 40):
+        wire[j : j + 3, :] = 255
+    mask = Image.fromarray(wire)
+    rgb = Image.new("RGB", mask.size, (200, 200, 200))
+
+    def cost(scale: float) -> float:
+        _, fg, bg = matting._small_trimap(mask, scale)
+        return matting.matting_gb(fg.size / 1e6, float((~(fg | bg)).sum()) / 1e6)
+
+    budget = cost(1.0) / 3
+    scales: list[float] = []
+    real = matting._small_trimap
+
+    def spy(m: Image.Image, scale: float) -> tuple[Image.Image, np.ndarray, np.ndarray]:
+        scales.append(scale)
+        return real(m, scale)
+
+    monkeypatch.setattr(matting, "MATTING_MIN_GB", 0.0)
+    monkeypatch.setattr(matting, "_small_trimap", spy)
+    monkeypatch.setattr(matting, "estimate_alpha_cf", lambda image, trimap: trimap)
+    refine_edges(rgb, mask, EdgeMode.MATTE, budget_gb=budget)
+    monkeypatch.setattr(matting, "_small_trimap", real)
+    assert cost(scales[-1]) <= budget

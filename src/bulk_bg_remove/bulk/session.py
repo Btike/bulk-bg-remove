@@ -15,10 +15,21 @@ from ..domain import OutputFormat
 from ..engine.model import DEFAULT_MODEL, downloaded_model_path, ensure_model
 from ..paths import OutputTarget, map_outputs, output_root_for
 from .events import Event, EventSink, JSONObject
-from .plan import DEFAULT_MAX_WORKERS, Plan, PlanSettings, make_plan
+from .plan import (
+    DEFAULT_MAX_WORKERS,
+    RECYCLE_MARGIN_GB,
+    Plan,
+    PlanSettings,
+    make_plan,
+    model_peak_gb,
+)
 from .runner import DEFAULT_FACTORY, Job, Runner, RunSettings
 from .scan import ImageSource, Inventory, discover, free_disk_gb, probe_hardware
 from .verify import is_complete, verify_output
+
+
+class ModelUnavailable(RuntimeError):
+    """The model's weights could not be downloaded or its runtime is missing."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +191,7 @@ class BulkSession:
                     pause_below_gb=self.plan.pause_below_gb,
                     pause_timeout_s=self._options.pause_timeout_s,
                     model_factory=self._options.model_factory,
+                    recycle_above_gb=model_peak_gb(self._options.model) + RECYCLE_MARGIN_GB,
                 ),
                 self._emit,
             )
@@ -220,7 +232,11 @@ class BulkSession:
     def _ensure_model(self) -> None:
         if self._options.model_factory != DEFAULT_FACTORY:
             return  # a custom (test) model brings its own weights
-        if downloaded_model_path(self._options.model) is None:
-            self._emit(Event("model_download", {"model": self._options.model}))
-            ensure_model(self._options.model)
-            self._emit(Event("model_ready", {"model": self._options.model}))
+        model = self._options.model
+        if downloaded_model_path(model) is None:
+            self._emit(Event("model_download", {"model": model}))
+            try:
+                ensure_model(model)
+            except Exception as exc:  # network, disk, or a missing optional runtime
+                raise ModelUnavailable(f"model {model} is not available: {exc}") from exc
+            self._emit(Event("model_ready", {"model": model}))

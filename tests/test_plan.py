@@ -45,7 +45,7 @@ def test_typical_laptop_runs_as_a_queue() -> None:
 
 
 def test_big_machine_runs_in_parallel_capped_by_cpu() -> None:
-    plan = make_plan(hardware(free_gb=40.0, perf=4), inventory(), 100.0, settings())
+    plan = make_plan(hardware(free_gb=48.0, perf=4), inventory(), 100.0, settings())
     assert plan.workers == 2  # two workers per four performance cores
     assert plan.mode == "parallel"
     assert plan.binding_limit == "CPU"
@@ -95,18 +95,31 @@ def test_worker_override_is_honoured_with_a_warning() -> None:
 
 
 def test_heavier_model_fits_fewer_workers() -> None:
-    lite = make_plan(hardware(free_gb=52.0, perf=16), inventory(), 100.0, settings())
+    lite = make_plan(hardware(free_gb=60.0, perf=16), inventory(), 100.0, settings())
     full = make_plan(
-        hardware(free_gb=52.0, perf=16), inventory(), 100.0, settings(model="birefnet-general")
+        hardware(free_gb=60.0, perf=16), inventory(), 100.0, settings(model="birefnet-general")
     )
     assert full.workers < lite.workers
 
 
 def test_lighter_model_needs_far_less_ram() -> None:
-    assert minimum_free_ram_gb("isnet-general-use") < 5.0
+    assert minimum_free_ram_gb("isnet-general-use") < 5.5
     assert minimum_free_ram_gb("birefnet-general-lite") > 11.0
 
 
-def test_parallel_needs_headroom_beyond_two_model_copies() -> None:
-    assert make_plan(hardware(free_gb=22.0), inventory(), 100.0, settings()).workers == 1
-    assert make_plan(hardware(free_gb=25.0), inventory(), 100.0, settings()).workers == 2
+def test_parallel_needs_room_for_two_full_workers() -> None:
+    # Each lite worker may peak at model + full-resolution matting (~12.6 GB).
+    assert make_plan(hardware(free_gb=27.0), inventory(), 100.0, settings()).workers == 1
+    assert make_plan(hardware(free_gb=28.0), inventory(), 100.0, settings()).workers == 2
+
+
+def test_doctor_and_plan_agree_on_the_floor() -> None:
+    plan = make_plan(hardware(free_gb=30.0), inventory(megapixels=12), 100.0, settings())
+    expected = minimum_free_ram_gb("birefnet-general-lite", megapixels=12)
+    assert abs(plan.min_free_ram_gb - expected) < 0.01
+
+
+def test_small_models_fit_a_laptop_with_4_gb_free() -> None:
+    # 12 MP photos with edge matting: silueta fits in ~3.4 GB, u2net in ~4.5 GB.
+    assert minimum_free_ram_gb("silueta") < 3.5
+    assert minimum_free_ram_gb("u2net") < 5.0

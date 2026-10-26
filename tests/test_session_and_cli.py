@@ -105,6 +105,10 @@ def test_cli_json_mode_end_to_end(
     assert kinds[1] == "plan"
     assert kinds[-1] == "finished"
     assert events[-1]["processed"] == 2
+    done = [e for e in events if e["type"] == "job_done"]
+    assert sorted(e["done"] for e in done) == [1, 2]
+    assert {e["total"] for e in done} == {2}
+    assert {Path(e["source"]).name for e in done} == {"a.jpg", "b.jpg"}
     with Image.open(tmp_path / "in-no-bg" / "a.png") as image:
         assert image.mode == "RGBA"
 
@@ -166,3 +170,48 @@ def test_json_stdout_stays_clean_when_libraries_print(
     for line in out.splitlines():
         json.loads(line)  # every stdout line is an event
     assert "PERFORMANCE WARNING" in err
+
+
+def test_cli_reports_a_model_that_cannot_be_prepared_as_an_error_event(
+    make_image: MakeImage,
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import bulk_bg_remove.bulk.session as session_module
+
+    def missing_runtime(model: str) -> Path:
+        raise ImportError("needs onnx and onnxconverter-common")
+
+    monkeypatch.setattr(session_module, "downloaded_model_path", lambda model: None)
+    monkeypatch.setattr(session_module, "ensure_model", missing_runtime)
+    make_image("in/a.jpg")
+    code = run([str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"])
+    events = [json.loads(line) for line in capfd.readouterr().out.splitlines() if line]
+    assert code == 1
+    assert [e["type"] for e in events][-2:] == ["model_download", "error"]
+    assert "onnxconverter-common" in events[-1]["message"]
+    assert not (tmp_path / "in-no-bg" / "a.png").exists()
+
+
+def test_json_output_survives_a_reader_that_closes_early(
+    make_image: MakeImage, tmp_path: Path
+) -> None:
+    import subprocess
+    import sys
+
+    make_image("in/a.jpg")
+    make_image("in/b.jpg")
+    # `| head -1`: the reader takes one line and closes the pipe.
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "bulk_bg_remove.cli", str(tmp_path / "in"), "--json", "--dry-run"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert proc.stdout is not None and proc.stderr is not None
+    first = proc.stdout.readline()
+    proc.stdout.close()
+    stderr = proc.stderr.read().decode()
+    assert proc.wait() == 0
+    assert json.loads(first)["type"] == "scan"
+    assert "BrokenPipeError" not in stderr

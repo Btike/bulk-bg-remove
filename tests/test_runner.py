@@ -25,6 +25,7 @@ def settings(workers: int = 2, factory: str = FAKE_FACTORY, **overrides: float) 
         pause_below_gb=overrides.get("pause_below_gb", 0.0),
         pause_timeout_s=overrides.get("pause_timeout_s", 600.0),
         model_factory=factory,
+        recycle_above_gb=overrides.get("recycle_above_gb"),
     )
 
 
@@ -125,3 +126,32 @@ def test_cancel_stops_handing_out_images(make_image: MakeImage, tmp_path: Path) 
     reasons = [o.reason for o in outcomes if not o.ok]
     assert reasons and all(r == "cancelled" for r in reasons)
     assert sum(o.ok for o in outcomes) < 6
+
+
+def test_a_worker_over_its_memory_limit_is_restarted_without_losing_images(
+    make_image: MakeImage, tmp_path: Path
+) -> None:
+    sources = [make_image(f"in/{i}.jpg") for i in range(4)]
+    events: list[Event] = []
+    # Any real process is above 0 GB, so every worker retires after each image.
+    outcomes = Runner(
+        jobs_for(sources, tmp_path / "out"),
+        settings(workers=2, recycle_above_gb=0.0),
+        events.append,
+    ).run()
+    assert len(outcomes) == 4
+    assert all(o.ok for o in outcomes)
+    assert all((tmp_path / "out" / f"{i}.png").is_file() for i in range(4))
+    assert types(events).count("worker_loading") >= 4  # 2 at start + restarts
+
+
+def test_no_restart_when_nothing_is_left_to_do(make_image: MakeImage, tmp_path: Path) -> None:
+    sources = [make_image("in/0.jpg")]
+    events: list[Event] = []
+    outcomes = Runner(
+        jobs_for(sources, tmp_path / "out"),
+        settings(workers=1, recycle_above_gb=0.0),
+        events.append,
+    ).run()
+    assert [o.ok for o in outcomes] == [True]
+    assert types(events).count("worker_loading") == 1  # retired after the last image, not reloaded
