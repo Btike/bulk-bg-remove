@@ -80,7 +80,7 @@ the events:
 If `plan.blockers` is empty, start right away, no need to ask:
 
 ```bash
-bulk-bg-remove "<path>" --profile <profile> --json --yes
+bulk-bg-remove "<path>" --profile <profile> --review-sheets --json --yes
 ```
 
 - `--yes` only skips the engine's own "Start?" prompt.
@@ -128,7 +128,44 @@ mention it in one line of your report.
 `--fast-edges`, and check `model_choice.gap == 0` (the best model for that
 profile is running). If the gap is above 0, say so and offer to free RAM.
 
-## 4. Report back
+## 4. Review the cut-outs
+
+The engine checks files, not looks. `--review-sheets` (step 3) adds a
+`review_sheets` event just before `finished`: sheet PNGs in a temporary folder,
+each showing up to 12 cut-outs numbered `#n`, as original | on black | on white.
+
+1. **Get a fresh pair of eyes.** If you can start a subagent (Claude Code: the
+   `bg-reviewer` agent this plugin ships, or any subagent; Codex: a sub-agent),
+   give it the sheet paths, the `review_sheets` event and the full text of
+   `references/reviewer.md`. It did not run the batch, so it sees what is
+   there, not what you expect. With more than 4 sheets, split them across
+   several reviewers in parallel: looking costs no engine RAM. If you cannot
+   start one, review the sheets yourself with `references/reviewer.md`.
+2. **Fix once, on the side.** For each `fix`, take the `source` of its `n`
+   from the `review_sheets` event and run again into a new temporary folder
+   outside `<path>`, one run per set of flags, never two at once:
+
+   ```bash
+   bulk-bg-remove "<path>" -o "<temp folder>" --profile <profile> --only <source> [--only <source> ...] <fix flags> --review-sheets --json --yes
+   ```
+
+   `--only` takes the absolute `source`, a path relative to `<path>`, or a bare
+   file name if it is unique, and keeps the usual output names (the same
+   `label` as on the first sheets). A fix whose plan is blocked (e.g. `--profile
+   complex` needs more RAM) goes through "When the plan is blocked".
+3. **Keep the better one.** Give the reviewer the new sheets plus the earlier
+   ones and ask it to compare (see "Comparing a fix" in `reviewer.md`). Copy a
+   new cut-out over the first one (same `label` under the output folder) only
+   when the reviewer says `keep: new`; a
+   second pass can make a good cut-out worse. One round only: anything still
+   wrong, and every `ask`, goes in your report with the sheet path so the user
+   can see it.
+
+Review by default; skip it only if the user wants speed over checking or says
+not to. The sheets cover the images this run processed: on a re-run where
+everything was already done there is no `review_sheets` event.
+
+## 5. Report back
 
 From the final `finished` event:
 
@@ -154,6 +191,8 @@ needed for the report. A good report is 3-5 lines:
 > PNG, same size, originals untouched). Model: birefnet-general-lite.
 > 1 failed: `IMG_0042.jpg` is damaged, re-export it.
 > 2 files skipped: not images (notes.txt, list.pdf).
+> Review: 35 fine; 2 had a green fringe on the hair and were redone with
+> `--clean-edges`, now fine.
 
 **Store and catalog photos.** Say what the output is: transparent, the same
 size as the original, not on white and not square-cropped, and contact
@@ -166,6 +205,8 @@ do these.
 | Flag | Use it when |
 |---|---|
 | `--profile NAME` | Always, from step 2. |
+| `--review-sheets` | Always, unless the user wants speed over checking (step 4). |
+| `--only FILE` | Redoing chosen images after a review (step 4), with `-o` to a temporary folder. Implies `--force` for them. |
 | `--model NAME` | The user names a model, or `references/models.md` says so for a special case. Default `auto`. |
 | `--format webp` | The user wants smaller files (still lossless). Default PNG. |
 | `--clean-edges` | A coloured halo from the old background shows on hair or fur (green screen, strong colours). Recolours semi-transparent edge pixels only. |
@@ -195,5 +236,6 @@ they can drop files or folders or paste images. Output lands in
 ## References
 
 - `references/models.md`: every model's scores by kind of image, speed and RAM.
+- `references/reviewer.md`: how to review the cut-outs, the defects and their fixes.
 - `references/json-events.md`: every `--json` event and its fields.
 - `references/troubleshooting.md`: install, model download, RAM and format problems.

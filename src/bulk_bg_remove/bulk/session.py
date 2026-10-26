@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from ..core.matting import MATTING_MAX_GB, EdgeMode
 from ..domain import OutputFormat
 from ..engine.model import DEFAULT_MODEL, downloaded_model_path, ensure_model
-from ..paths import OutputTarget, map_outputs, output_root_for
+from ..paths import OutputTarget, is_output_dir, map_outputs, output_root_for
 from .events import Event, EventSink, JSONObject
 from .models import AUTO_MODEL, ModelChoice, Profile, choose_model
 from .plan import (
@@ -26,6 +26,7 @@ from .plan import (
     model_peak_gb,
 )
 from .runner import DEFAULT_FACTORY, Job, Runner, RunSettings
+from .sample import ReviewSheet, write_review_sheets
 from .scan import ImageSource, Inventory, discover, free_disk_gb, probe_hardware
 from .verify import is_complete, verify_output
 
@@ -47,6 +48,8 @@ class BulkOptions:
     model_factory: str = DEFAULT_FACTORY
     profile: Profile = Profile.UNIFORM  # what kind of images, for model="auto"
     allow_fallback: bool = False  # let "auto" take a clearly weaker model that fits
+    only: tuple[str, ...] = ()  # redo just these (paths relative to the input, or names)
+    review_sheets: bool = False  # after the run, write sheets for a visual review
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +99,7 @@ class BulkSession:
         self.plan: Plan | None = None
         self._targets: list[OutputTarget] = []
         self._done_already: list[OutputTarget] = []
+        self._considered = 0
         self.model = options.model
         self.model_choice: ModelChoice | None = None
 
@@ -108,6 +112,7 @@ class BulkSession:
         hardware = probe_hardware()
         inventory = discover(self._input)
         self.inventory = inventory
+        _check_output_outside_input(self.output_root, inventory)
         self._emit(
             Event(
                 "scan",
@@ -126,7 +131,10 @@ class BulkSession:
             self._options.output_format,
         )
         by_path = {s.path: s for s in inventory.sources}
-        if self._options.force:
+        if self._options.only:
+            targets = _select(targets, inventory.input_root, self._options.only)
+        self._considered = len(targets)
+        if self._options.force or self._options.only:
             todo, done = targets, []
         else:
             todo = [t for t in targets if not is_complete(t.destination, by_path[t.source])]
@@ -247,9 +255,24 @@ class BulkSession:
                 if outcome.note:
                     warnings.append((str(outcome.job.destination), outcome.note))
 
+        if self._options.review_sheets:
+            verified = {Path(path) for path, _ in failed}
+            done_pairs = [
+                (o.job.source, o.job.destination)
+                for o in outcomes
+                if o.ok and o.job.source not in verified
+            ]
+            if done_pairs:
+                try:
+                    sheets = write_review_sheets(done_pairs, self.output_root)
+                except OSError as exc:
+                    warnings.append(("", f"review sheets could not be written: {exc}"))
+                else:
+                    self._emit_review_sheets(sheets)
+
         report = Report(
             output_root=self.output_root,
-            images=len(self.inventory.sources),
+            images=self._considered,
             processed=processed,
             failed=tuple(failed),
             already_done=len(self._done_already),
@@ -259,6 +282,30 @@ class BulkSession:
         )
         self._emit(Event("finished", report.to_dict()))
         return report
+
+    def _emit_review_sheets(self, sheets: list[ReviewSheet]) -> None:
+        self._emit(
+            Event(
+                "review_sheets",
+                {
+                    "sheets": [
+                        {
+                            "path": str(sheet.path),
+                            "images": [
+                                {
+                                    "n": e.number,
+                                    "label": e.label,
+                                    "source": str(e.source),
+                                    "output": str(e.output),
+                                }
+                                for e in sheet.entries
+                            ],
+                        }
+                        for sheet in sheets
+                    ]
+                },
+            )
+        )
 
     def _ensure_model(self) -> None:
         if self._options.model_factory != DEFAULT_FACTORY:
@@ -271,3 +318,49 @@ class BulkSession:
             except Exception as exc:  # network, disk, or a missing optional runtime
                 raise ModelUnavailable(f"model {model} is not available: {exc}") from exc
             self._emit(Event("model_ready", {"model": model}))
+
+
+def _select(targets: list[OutputTarget], root: Path, only: tuple[str, ...]) -> list[OutputTarget]:
+    """The targets named in `only`: an absolute path, a path relative to the input
+    folder, or a bare file name that matches exactly one image. Case-insensitive,
+    like macOS and Windows file systems. Raises ValueError for a name that matches
+    nothing or (bare names) more than one image."""
+    by_rel = {t.source.relative_to(root).as_posix().casefold(): t for t in targets}
+    selected: dict[Path, OutputTarget] = {}
+    for raw in only:
+        name = raw.replace("\\", "/")
+        as_path = Path(name).expanduser()
+        if as_path.is_absolute():
+            try:
+                name = as_path.resolve().relative_to(root).as_posix()
+            except ValueError:
+                raise ValueError(f"--only: {raw} is not inside the input folder") from None
+        key = PurePosixPath(name).as_posix().removeprefix("./").casefold()
+        if key in by_rel:
+            target = by_rel[key]
+        else:
+            matches = [t for t in targets if t.source.name.casefold() == key]
+            if not matches:
+                raise ValueError(f"--only: no such image in the input: {raw}")
+            if len(matches) > 1:
+                where = ", ".join(t.source.relative_to(root).as_posix() for t in matches)
+                raise ValueError(f"--only: {raw} matches several images ({where}); give its path")
+            target = matches[0]
+        selected[target.source] = target
+    return list(selected.values())
+
+
+def _check_output_outside_input(output_root: Path, inventory: Inventory) -> None:
+    """An output folder inside the input would be scanned as photos next time,
+    unless it is named like one (`*-no-bg`), which the scan skips."""
+    if not inventory.input_path.is_dir():
+        return
+    try:
+        inside = output_root.expanduser().resolve().relative_to(inventory.input_root)
+    except ValueError:
+        return
+    if not any(is_output_dir(Path(part)) for part in inside.parts):
+        raise ValueError(
+            f"-o {output_root} is inside the input folder: put it elsewhere, or end its "
+            "name with -no-bg so later runs skip it"
+        )

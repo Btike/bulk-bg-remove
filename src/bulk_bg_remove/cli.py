@@ -111,6 +111,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="refuse to start below this much free RAM (default: what the model needs)",
     )
     parser.add_argument("--force", action="store_true", help="redo images already done")
+    parser.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        metavar="IMAGE",
+        help="redo just this image (a path relative to PATH, or a file name); repeatable",
+    )
+    parser.add_argument(
+        "--review-sheets",
+        action="store_true",
+        help="after the run, write sheets showing each cut-out on black and white for review",
+    )
     parser.add_argument("--dry-run", action="store_true", help="scan and plan, then stop")
     parser.add_argument("-y", "--yes", action="store_true", help="start without asking")
     parser.add_argument(
@@ -137,6 +149,8 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         model_factory=model_factory,
         profile=Profile(args.profile),
         allow_fallback=args.allow_fallback,
+        only=tuple(args.only),
+        review_sheets=args.review_sheets,
     )
 
     terminal = None if args.json else TerminalReporter()

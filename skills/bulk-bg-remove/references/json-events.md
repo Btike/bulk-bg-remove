@@ -10,7 +10,7 @@ only ever added, never renamed or removed.
 ```
 scan → plan → [sample_sheet] → [model_download → model_ready] → worker_loading → worker_ready
      → job_started → job_stage… → job_done | job_failed   (per image)
-     → verify_started → finished
+     → verify_started → [review_sheets] → finished
 ```
 
 `--dry-run` stops after `plan`. `paused`/`resumed` can appear at any time
@@ -35,6 +35,7 @@ during the run. `error` or `interrupted` end the stream early.
 | `paused` | `free_ram_gb`, `needed_gb`: free RAM dropped below the reserve, new images wait (if nothing frees up, pending images fail with `not enough free RAM (pause timed out)`) |
 | `resumed` | `free_ram_gb` |
 | `verify_started` | `outputs` |
+| `review_sheets` | `sheets` [{`path`, `images` [{`n`, `label`, `source`, `output`}]}]: only with `--review-sheets`, and only when this run produced cut-outs. PNGs in a temporary folder, 12 per sheet; `n` counts from 1 in each run, `label` is the output path relative to the output folder (stable across runs) |
 | `finished` | `output`, `images`, `processed`, `already_done`, `failed` [{`path`, `reason`}], `not_processed` [{`path`, `reason`}], `warnings` [{`path`, `warning`}], `seconds` |
 | `error` | `message` (the run stopped) |
 | `interrupted` | (Ctrl+C) |

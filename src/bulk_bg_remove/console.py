@@ -163,6 +163,12 @@ class TerminalReporter:
         for blocker in data["blockers"] if isinstance(data["blockers"], list) else []:
             self.line(f"[bold red]✗ {_str(blocker)}[/]")
 
+    def _on_review_sheets(self, data: JSONObject) -> None:
+        sheets = data.get("sheets")
+        for sheet in sheets if isinstance(sheets, list) else []:
+            if isinstance(sheet, dict):
+                self.line(f"[dim]review sheet → {_str(sheet.get('path'))}[/]")
+
     def _on_sample_sheet(self, data: JSONObject) -> None:
         self.line(f"[dim]sample sheet → {_str(data.get('path'))}[/]")
 
