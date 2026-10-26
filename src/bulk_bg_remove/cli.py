@@ -1,6 +1,8 @@
 """Command-line entry point.
 
+    bulk-bg-remove                  open the drag-and-drop UI in your browser
     bulk-bg-remove PATH [options]   process a photo or a folder (recursively)
+    bulk-bg-remove PATH --ui        same, but plan and watch it in the UI
     bulk-bg-remove doctor           check the install, the model and this machine
 
 Exit codes: 0 all good · 1 some images failed · 2 nothing ran (blocked or bad
@@ -39,7 +41,16 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=f"Supported inputs: {' '.join(SUPPORTED_EXTENSIONS)} (detected by content). "
         "Run `bulk-bg-remove doctor` to check your setup.",
     )
-    parser.add_argument("path", type=Path, help="a photo or a folder (searched recursively)")
+    parser.add_argument(
+        "path",
+        type=Path,
+        nargs="?",
+        help="a photo or a folder (searched recursively); omit it to open the UI",
+    )
+    parser.add_argument("--ui", action="store_true", help="plan and watch the run in the browser")
+    parser.add_argument(
+        "--no-browser", action="store_true", help="with the UI: print its URL instead of opening it"
+    )
     parser.add_argument(
         "-o", "--output", type=Path, help="output folder (default: <name>-no-bg/ next to PATH)"
     )
@@ -86,7 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.path is None or args.ui:
+        if args.json:
+            parser.error("--json needs a PATH (the UI is for people; agents use the CLI)")
+        return run_ui(args)
     options = BulkOptions(
         model=args.model,
         output_format=OutputFormat(args.output_format),
@@ -145,6 +161,27 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         if terminal:
             terminal.close()
     return report.exit_code
+
+
+def run_ui(args: argparse.Namespace) -> int:
+    from .ui.launch import serve
+
+    terminal = TerminalReporter()
+    terminal.banner()
+    defaults = {"m": args.model, "e": str(args.edges), "f": args.output_format}
+    try:
+        serve(
+            echo=terminal,
+            initial_path=args.path,
+            defaults=defaults,
+            open_browser=not args.no_browser,
+            announce=terminal,
+        )
+    except KeyboardInterrupt:
+        pass
+    finally:
+        terminal.close()
+    return EXIT_OK
 
 
 def main(argv: Sequence[str] | None = None) -> int:

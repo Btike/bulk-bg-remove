@@ -142,6 +142,13 @@ class TerminalReporter:
     def output(self, path: Path) -> None:
         self.line(f"output → [cyan]{path}[/]")
 
+    def _on_ui_ready(self, data: JSONObject) -> None:
+        self.header("[UI]", f"[bold cyan]{_str(data['url'])}[/]")
+        self.line("[dim]drop photos or a folder in the browser · Ctrl+C here to quit[/]")
+
+    def _on_run_started(self, data: JSONObject) -> None:
+        self.header("[3/4 RUN]", f"{_str(data['images'])} image(s)…")
+
     def _on_model_download(self, data: JSONObject) -> None:
         self.line(f"[yellow]⬇ downloading model {_str(data['model'])} (first run only)…[/]")
 
