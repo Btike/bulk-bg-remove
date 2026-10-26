@@ -70,3 +70,12 @@ def test_cmyk_profile_is_dropped(tmp_path) -> None:
     source = load_source(path)
     assert source.rgb.mode == "RGB"
     assert source.icc_profile is None
+
+
+def test_16bit_greyscale_is_scaled_not_clipped(tmp_path) -> None:
+    ramp = (np.arange(256, dtype=np.uint16) * 257).reshape(16, 16)  # full 0..65535 range
+    path = tmp_path / "grey16.png"
+    Image.fromarray(ramp).save(path)
+    rgb = np.asarray(load_source(path).rgb)
+    assert rgb.shape == (16, 16, 3)
+    assert np.array_equal(rgb[:, :, 0], np.arange(256, dtype=np.uint8).reshape(16, 16))

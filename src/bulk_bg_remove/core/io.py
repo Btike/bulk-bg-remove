@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageOps
 
 from .. import formats  # noqa: F401  (registers the HEIC/HEIF opener)
@@ -36,8 +37,21 @@ def load_source(path: Path) -> SourceImage:
         if handle.mode == "CMYK":
             icc = None
         upright = ImageOps.exif_transpose(handle)
-        rgb = upright.convert("RGB")
+        rgb = _to_8bit(upright).convert("RGB")
     return SourceImage(rgb=rgb, icc_profile=icc)
+
+
+def _to_8bit(image: Image.Image) -> Image.Image:
+    """Scale 16/32-bit greyscale down to 8 bits.
+
+    Pillow's own conversion clips instead of scaling, which turns a 16-bit
+    greyscale photo almost entirely white. Output is 8 bits per channel, so the
+    extra depth cannot be kept either way.
+    """
+    if not image.mode.startswith("I"):
+        return image
+    data = np.asarray(image, dtype=np.float64)
+    return Image.fromarray(np.clip(np.round(data / 257.0), 0, 255).astype(np.uint8))
 
 
 def save_rgba(
