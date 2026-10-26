@@ -12,13 +12,21 @@ from rich.console import Console
 
 from . import __version__
 from .bulk.events import JSONObject
-from .bulk.plan import minimum_free_ram_gb, model_peak_gb
+from .bulk.models import AUTO_MODEL, Profile, choose_model
+from .bulk.plan import MODEL_PEAK_GB, minimum_free_ram_gb, model_peak_gb
 from .bulk.scan import probe_hardware
-from .engine.model import DEFAULT_MODEL, downloaded_model_path
+from .core.matting import EdgeMode
+from .engine.model import downloaded_model_path
+
+DOCTOR_MEGAPIXELS = 12.0  # a typical phone photo
 
 
 def collect(model: str) -> JSONObject:
     hardware = probe_hardware()
+    if model == AUTO_MODEL:  # what a run on product photos would use right now
+        model = choose_model(
+            Profile.UNIFORM, hardware.ram_available_gb, EdgeMode.MATTE, DOCTOR_MEGAPIXELS
+        ).model
     weights = downloaded_model_path(model)
     needed = minimum_free_ram_gb(model)
     try:
@@ -44,12 +52,27 @@ def collect(model: str) -> JSONObject:
         "min_free_ram_gb": round(needed, 1),
         "checks": dict(checks),
         "ready": all(v for k, v in checks.items() if k != "model_downloaded"),
+        # What `--model auto` would pick right now for each kind of image.
+        "auto": {
+            profile.value: choose_model(
+                profile, hardware.ram_available_gb, EdgeMode.MATTE, DOCTOR_MEGAPIXELS
+            ).to_dict()
+            for profile in Profile
+        },
+        "models": [
+            {
+                "name": name,
+                "min_free_ram_gb": round(minimum_free_ram_gb(name), 1),
+                "fits": hardware.ram_available_gb >= minimum_free_ram_gb(name),
+            }
+            for name in MODEL_PEAK_GB
+        ],
     }
 
 
 def doctor(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(prog="bulk-bg-remove doctor")
-    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--model", default=AUTO_MODEL)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 

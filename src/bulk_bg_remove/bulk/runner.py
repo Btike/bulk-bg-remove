@@ -65,6 +65,9 @@ class RunSettings:
     # Images of different sizes fragment the heap, so a long-lived worker's RSS
     # creeps up to ~3x a single image's peak; a fresh process starts clean.
     recycle_above_gb: float | None = None
+    # ...but only while free RAM is below this (None: always). Reloading a model
+    # costs ~2 s, so a worker keeps its grown heap while the machine has room.
+    recycle_when_free_below_gb: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +119,10 @@ def _should_retire(settings: RunSettings) -> bool:
     if limit is None:
         return False
     try:
-        return process_rss_gb() > limit
+        if process_rss_gb() <= limit:
+            return False
+        tight = settings.recycle_when_free_below_gb
+        return tight is None or available_ram_gb() < tight
     except Exception:  # noqa: BLE001 — a failed probe must not lose a finished image
         return False
 
@@ -131,8 +137,11 @@ def worker_main(
     # Ctrl+C is handled by the parent, which lets in-flight images finish cleanly.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     # stdout belongs to the parent (`--json` lines). Libraries such as pymatting
-    # print warnings there, so point this process's stdout at stderr.
-    os.dup2(2, 1)
+    # print harmless warnings there ("incomplete Cholesky ... failed"), so this
+    # process's stdout goes nowhere; real errors still reach stderr.
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 1)
+    os.close(devnull)
     # rembg sizes ONNX threads from this; without it N workers oversubscribe the CPU.
     os.environ["OMP_NUM_THREADS"] = str(settings.threads_per_worker)
     try:

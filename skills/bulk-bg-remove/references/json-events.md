@@ -1,13 +1,14 @@
 # `--json` events
 
 With `--json`, `bulk-bg-remove` prints one JSON object per line on stdout and
-nothing else. Every event has `type` and `at` (Unix time, seconds). Fields are
+nothing else. stderr may carry warnings; judge a run by its exit code and the
+`finished` event. Every event has `type` and `at` (Unix time, seconds). Fields are
 only ever added, never renamed or removed.
 
 ## Order
 
 ```
-scan → plan → [model_download → model_ready] → worker_loading → worker_ready
+scan → plan → [sample_sheet] → [model_download → model_ready] → worker_loading → worker_ready
      → job_started → job_stage… → job_done | job_failed   (per image)
      → verify_started → finished
 ```
@@ -20,10 +21,11 @@ during the run. `error` or `interrupted` end the stream early.
 | type | fields |
 |---|---|
 | `scan` | `hardware` {`platform`, `cpu_name`, `cpu_logical`, `cpu_performance`, `ram_total_gb`, `ram_available_gb`, `device`} · `inventory` {`input`, `images`, `total_mb`, `max_megapixels`, `formats` {format: count}, `skipped` [{`path`, `reason`}]: files that are not supported images, hidden image files (`hidden file`) and earlier output folders (`earlier output folder (-no-bg)`)} · `output` |
-| `plan` | `images`, `mode` (`queue`/`parallel`), `workers`, `threads_per_worker`, `binding_limit` (`RAM`/`CPU`), `ram_per_worker_gb`, `min_free_ram_gb`, `pause_below_gb`, `estimated_output_gb`, `free_disk_gb`, `eta_seconds`, `blockers` [str], `warnings` [str], `model`, `edges` (`matte`/`clean`/`mask`), `already_done` |
+| `sample_sheet` | `path` (a PNG in a temporary folder), `images` [file names]: only with `--sample-sheet` |
+| `plan` | `images`, `mode` (`queue`/`parallel`), `workers`, `threads_per_worker`, `binding_limit` (`RAM`/`CPU`), `ram_per_worker_gb`, `min_free_ram_gb`, `pause_below_gb`, `estimated_output_gb`, `free_disk_gb`, `eta_seconds`, `blockers` [str], `warnings` [str], `model` (the model that will run), `model_choice` (null unless `--model auto`: {`profile`, `model`, `score`, `best_model`, `best_score`, `best_needs_gb`, `needs_gb`, `fits`, `gap`}, scores 0-10 from the bench), `edges` (`matte`/`clean`/`mask`), `already_done` |
 | `model_download` | `model` (first run only: weights are being downloaded) |
 | `model_ready` | `model` |
-| `worker_loading` / `worker_ready` | `worker` (a worker that grew too large in memory is restarted mid-run: expect these again for the same `worker`) |
+| `worker_loading` / `worker_ready` | `worker`. They can repeat mid-run for the same `worker`: when free RAM runs low, a worker whose memory grew is restarted (~2 s). Normal, not a crash |
 | `worker_failed` | `worker`, `reason` |
 | `job_started` | `job`, `worker`, `source`, `destination` |
 | `job_stage` | `job`, `worker`, `stage`, `progress` (0–1) |
@@ -39,24 +41,29 @@ during the run. `error` or `interrupted` end the stream early.
 
 ## `doctor --json`
 
-A single object, not a stream:
+A single object, not a stream (abridged):
 
 ```json
 {
   "version": "0.1.0",
-  "python": "3.12.7",
-  "hardware": {"platform": "Darwin arm64", "cpu_name": "Apple M5", "cpu_logical": 10,
-               "cpu_performance": 4, "ram_total_gb": 34.4, "ram_available_gb": 14.6,
-               "device": "cpu"},
+  "hardware": {"ram_total_gb": 34.4, "ram_available_gb": 22.0, "device": "cpu", "...": "..."},
   "model": "birefnet-general-lite",
   "model_path": "/Users/me/.u2net/birefnet-general-lite.onnx",
-  "model_peak_ram_gb": 9.5,
-  "min_free_ram_gb": 11.8,
+  "model_peak_ram_gb": 9.4,
+  "min_free_ram_gb": 12.1,
   "checks": {"heic": true, "avif": true, "webp": true,
              "model_downloaded": true, "enough_free_ram": true},
-  "ready": true
+  "ready": true,
+  "auto": {"uniform": {"model": "birefnet-general-lite", "score": 8.6, "gap": 0.0, "...": "..."},
+           "complex": {"model": "birefnet-general", "score": 7.6, "gap": 0.0, "...": "..."}},
+  "models": [{"name": "silueta", "min_free_ram_gb": 3.4, "fits": true}]
 }
 ```
 
-`ready` ignores `model_downloaded` (the model downloads on first run). Exit
-code `2` when not ready.
+`model` is what `auto` would use for product photos right now (or the model
+passed with `--model`). `auto` has the pick for every profile, for a 12 MP
+photo: `fits: false` means no model fits (the run would be blocked for RAM);
+`fits: true` with a `gap` above 0.5 means a run with that profile would stop
+and ask (`--allow-fallback`).
+`ready` ignores `model_downloaded` (models download on first run). Exit code
+`2` when not ready.

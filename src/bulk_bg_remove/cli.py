@@ -20,7 +20,9 @@ from rich.prompt import Confirm
 
 from . import __version__
 from .bulk.events import Event
+from .bulk.models import AUTO_MODEL, Profile
 from .bulk.runner import DEFAULT_FACTORY
+from .bulk.sample import write_sample_sheet
 from .bulk.session import BulkOptions, BulkSession, ModelUnavailable
 from .console import JsonReporter, TerminalReporter
 from .core.matting import EdgeMode
@@ -61,7 +63,29 @@ def build_parser() -> argparse.ArgumentParser:
         default=OutputFormat.PNG.value,
         help="output format, always lossless (default: png)",
     )
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"default: {DEFAULT_MODEL}")
+    parser.add_argument(
+        "--model",
+        default=AUTO_MODEL,
+        help="a model name, or 'auto' (default): the best model for --profile that fits "
+        f"in free RAM. Without auto the usual choice is {DEFAULT_MODEL}",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=[p.value for p in Profile],
+        default=Profile.UNIFORM.value,
+        help="what the images are, for --model auto: uniform (products, objects; default), "
+        "complex (hair, fur, plants, wires), people, scene (cluttered), drawing",
+    )
+    parser.add_argument(
+        "--allow-fallback",
+        action="store_true",
+        help="with --model auto: accept a clearly weaker model when the best one does not fit",
+    )
+    parser.add_argument(
+        "--sample-sheet",
+        action="store_true",
+        help="write a contact sheet of up to 12 of the images (to judge --profile) and report it",
+    )
     edges = parser.add_mutually_exclusive_group()
     edges.add_argument(
         "--clean-edges",
@@ -111,6 +135,8 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         min_free_ram_gb=args.min_free_ram,
         force=args.force,
         model_factory=model_factory,
+        profile=Profile(args.profile),
+        allow_fallback=args.allow_fallback,
     )
 
     terminal = None if args.json else TerminalReporter()
@@ -131,6 +157,9 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
 
     if terminal:
         terminal.output(session.output_root)
+    if args.sample_sheet and session.inventory is not None and session.inventory.sources:
+        sheet = write_sample_sheet([s.path for s in session.inventory.sources])
+        emit(Event("sample_sheet", {"path": str(sheet.path), "images": list(sheet.names)}))
     if not plan.ok:
         return EXIT_BLOCKED
     if args.dry_run:

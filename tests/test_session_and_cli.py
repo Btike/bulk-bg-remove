@@ -169,7 +169,7 @@ def test_json_stdout_stays_clean_when_libraries_print(
     out, err = capfd.readouterr()
     for line in out.splitlines():
         json.loads(line)  # every stdout line is an event
-    assert "PERFORMANCE WARNING" in err
+    assert "PERFORMANCE WARNING" not in out + err  # library chatter is dropped
 
 
 def test_cli_reports_a_model_that_cannot_be_prepared_as_an_error_event(

@@ -26,6 +26,7 @@ def settings(workers: int = 2, factory: str = FAKE_FACTORY, **overrides: float) 
         pause_timeout_s=overrides.get("pause_timeout_s", 600.0),
         model_factory=factory,
         recycle_above_gb=overrides.get("recycle_above_gb"),
+        recycle_when_free_below_gb=overrides.get("recycle_when_free_below_gb"),
     )
 
 
@@ -155,3 +156,18 @@ def test_no_restart_when_nothing_is_left_to_do(make_image: MakeImage, tmp_path: 
     ).run()
     assert [o.ok for o in outcomes] == [True]
     assert types(events).count("worker_loading") == 1  # retired after the last image, not reloaded
+
+
+def test_a_worker_keeps_running_while_the_machine_has_room(
+    make_image: MakeImage, tmp_path: Path
+) -> None:
+    sources = [make_image(f"in/{i}.jpg") for i in range(3)]
+    events: list[Event] = []
+    # Over its limit, but free RAM is never below 0 GB: no restart.
+    outcomes = Runner(
+        jobs_for(sources, tmp_path / "out"),
+        settings(workers=1, recycle_above_gb=0.0, recycle_when_free_below_gb=0.0),
+        events.append,
+    ).run()
+    assert all(o.ok for o in outcomes)
+    assert types(events).count("worker_loading") == 1

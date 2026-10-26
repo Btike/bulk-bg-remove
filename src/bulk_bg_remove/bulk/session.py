@@ -10,14 +10,16 @@ import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from ..core.matting import EdgeMode
+from ..core.matting import MATTING_MAX_GB, EdgeMode
 from ..domain import OutputFormat
 from ..engine.model import DEFAULT_MODEL, downloaded_model_path, ensure_model
 from ..paths import OutputTarget, map_outputs, output_root_for
 from .events import Event, EventSink, JSONObject
+from .models import AUTO_MODEL, ModelChoice, Profile, choose_model
 from .plan import (
     DEFAULT_MAX_WORKERS,
     RECYCLE_MARGIN_GB,
+    RESERVE_RAM_GB,
     Plan,
     PlanSettings,
     make_plan,
@@ -43,6 +45,8 @@ class BulkOptions:
     force: bool = False
     pause_timeout_s: float = 600.0
     model_factory: str = DEFAULT_FACTORY
+    profile: Profile = Profile.UNIFORM  # what kind of images, for model="auto"
+    allow_fallback: bool = False  # let "auto" take a clearly weaker model that fits
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +96,8 @@ class BulkSession:
         self.plan: Plan | None = None
         self._targets: list[OutputTarget] = []
         self._done_already: list[OutputTarget] = []
+        self.model = options.model
+        self.model_choice: ModelChoice | None = None
 
     @property
     def output_root(self) -> Path:
@@ -133,8 +139,16 @@ class BulkSession:
             tuple(by_path[t.source] for t in todo),
             inventory.skipped,
         )
+        if self._options.model == AUTO_MODEL:
+            self.model_choice = choose_model(
+                self._options.profile,
+                hardware.ram_available_gb,
+                self._options.edges,
+                remaining.max_megapixels,
+            )
+            self.model = self.model_choice.model
         settings = PlanSettings(
-            model=self._options.model,
+            model=self.model,
             output_format=self._options.output_format,
             edges=self._options.edges,
             workers=self._options.workers,
@@ -142,6 +156,21 @@ class BulkSession:
             min_free_ram_gb=self._options.min_free_ram_gb,
         )
         plan = make_plan(hardware, remaining, free_disk_gb(self.output_root), settings)
+        choice = self.model_choice
+        if (
+            choice
+            and todo
+            and choice.is_fallback
+            and choice.fits
+            and not self._options.allow_fallback
+        ):
+            blocker = (
+                f"for {choice.profile} images the best model is {choice.best_model} "
+                f"({choice.best_score}/10), which needs {choice.best_needs_gb:.1f} GB free; "
+                f"{hardware.ram_available_gb:.1f} GB only fits {choice.model} "
+                f"({choice.score}/10) — close some apps and retry, or add --allow-fallback"
+            )
+            plan = replace(plan, blockers=(*plan.blockers, blocker))
         if not todo and done:
             # Everything is already done: nothing can block an empty run.
             plan = replace(plan, blockers=())
@@ -151,7 +180,8 @@ class BulkSession:
                 "plan",
                 {
                     **plan.to_dict(),
-                    "model": self._options.model,
+                    "model": self.model,
+                    "model_choice": choice.to_dict() if choice else None,
                     "edges": self._options.edges.value,
                     "already_done": len(done),
                 },
@@ -183,7 +213,7 @@ class BulkSession:
             self._runner = Runner(
                 jobs,
                 RunSettings(
-                    model=self._options.model,
+                    model=self.model,
                     output_format=self._options.output_format,
                     edges=self._options.edges,
                     workers=self.plan.workers,
@@ -191,7 +221,8 @@ class BulkSession:
                     pause_below_gb=self.plan.pause_below_gb,
                     pause_timeout_s=self._options.pause_timeout_s,
                     model_factory=self._options.model_factory,
-                    recycle_above_gb=model_peak_gb(self._options.model) + RECYCLE_MARGIN_GB,
+                    recycle_above_gb=model_peak_gb(self.model) + RECYCLE_MARGIN_GB,
+                    recycle_when_free_below_gb=RESERVE_RAM_GB + MATTING_MAX_GB + RECYCLE_MARGIN_GB,
                 ),
                 self._emit,
             )
@@ -232,7 +263,7 @@ class BulkSession:
     def _ensure_model(self) -> None:
         if self._options.model_factory != DEFAULT_FACTORY:
             return  # a custom (test) model brings its own weights
-        model = self._options.model
+        model = self.model
         if downloaded_model_path(model) is None:
             self._emit(Event("model_download", {"model": model}))
             try:

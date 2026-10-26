@@ -1,11 +1,22 @@
 # Choosing a model
 
+You rarely need to pick by hand: `--model auto --profile <kind>` (the default
+model is `auto`) takes the best-scoring model for that kind of image that fits
+in free RAM, and stops to ask when the only model that fits is more than half
+a point worse (`--allow-fallback` accepts it). The profiles group the image
+types below: `uniform` (products, white-on-white, labels, reflective, several
+objects), `complex` (hair, fur, plants, thin parts), `people`, `scene`
+(cluttered), `drawing`. Use this page for special cases and to explain a choice.
+
+
 Measured on 69 distinct test images across 11 models (80 images judged; the
 format folder re-encodes one product photo 11 times, so it counts once in the
 means below). Each output was scored 0-10 by one blind visual judge at zoom.
 Speed and RAM come from one worker on an Apple M5 CPU with edge matting on.
-When two models are within 0.5 points, they count as a tie and the faster,
-lighter model wins.
+The per-type table below is for picking by hand: there, models within 0.5 points
+count as a tie and the faster, lighter model wins. `auto` is stricter: it takes
+the profile's top score and uses a lighter model only on an exact tie or when
+the best one does not fit (and asks when that costs more than 0.5 points).
 
 ## Pick by image type
 
@@ -63,10 +74,11 @@ a wrong extension, existing alpha, 180 px and 45 MP.
   higher, with lite reaching 15.7 GB and general 17.5 GB. The 45 MP photo did
   not cause that jump, so photo size alone does not predict the peak. When free
   RAM is tight on photos like these, use `--fast-edges`, which skips edge matting.
-- The dry-run `plan` reports `min_free_ram_gb` for the chosen model. Never
-  lower `--min-free-ram` to force a start. If the gate blocks, offer
-  `isnet-general-use` or `u2net` and say plainly that hair, thin parts and
-  composition come out worse (means 6.3-6.4 vs 7.8).
+- The dry-run `plan` reports `min_free_ram_gb` for the model `auto` picked.
+  Never lower `--min-free-ram` to force a start. With `auto`, a RAM blocker
+  means even the lightest model for that profile does not fit: free RAM or use
+  another machine. A blocker mentioning `--allow-fallback` means a lighter,
+  clearly worse model fits: ask the user before adding it.
 
 ## Models to avoid
 

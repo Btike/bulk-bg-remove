@@ -146,12 +146,25 @@ class TerminalReporter:
             f"[dim]model {_str(data.get('model'))} · edges {_str(data.get('edges'))} · "
             f"needs {_num(data['min_free_ram_gb']):.1f} GB free RAM[/]"
         )
+        choice = data.get("model_choice")
+        if isinstance(choice, dict):
+            gap = _num(choice.get("gap"))
+            if gap > 0:
+                score, best = _num(choice.get("score")), _num(choice.get("best_score"))
+                self.line(
+                    f"[dim]auto: {_str(choice.get('model'))} fits your free RAM "
+                    f"({score:.1f}/10 on {_str(choice.get('profile'))} images; "
+                    f"best {_str(choice.get('best_model'))} {best:.1f})[/]"
+                )
         if already:
             self.line(f"[dim]{already} already done — skipping (use --force to redo)[/]")
         for warning in data["warnings"] if isinstance(data["warnings"], list) else []:
             self.line(f"[yellow]! {_str(warning)}[/]")
         for blocker in data["blockers"] if isinstance(data["blockers"], list) else []:
             self.line(f"[bold red]✗ {_str(blocker)}[/]")
+
+    def _on_sample_sheet(self, data: JSONObject) -> None:
+        self.line(f"[dim]sample sheet → {_str(data.get('path'))}[/]")
 
     def output(self, path: Path) -> None:
         self.line(f"output → [cyan]{path}[/]")

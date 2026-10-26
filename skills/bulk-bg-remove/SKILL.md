@@ -2,18 +2,20 @@
 name: bulk-bg-remove
 description: >
   Remove image backgrounds locally and in bulk: one photo, a folder (searched
-  recursively) or many folders, with BiRefNet. No uploads, no API keys, no
-  per-image cost. Writes lossless transparent PNG/WebP to a new "<name>-no-bg"
-  folder next to the input and never touches the originals. Use when the user
-  asks to remove, cut out or erase a background, make a transparent PNG,
-  isolate a product, person, animal or object, prepare product or catalog
-  photos, or replace remove.bg for a batch. Reads JPG, PNG, HEIC, WebP, AVIF,
-  TIFF and BMP.
+  recursively) or many folders, with BiRefNet and lighter models picked to fit
+  the machine. No uploads, no API keys, no per-image cost. Writes lossless
+  transparent PNG/WebP to a new "<name>-no-bg" folder next to the input and
+  never touches the originals. Use when the user asks to remove, cut out or
+  erase a background, make a transparent PNG, isolate a product, person, animal
+  or object, prepare product or catalog photos, or replace remove.bg for a
+  batch. Reads JPG, PNG, HEIC, WebP, AVIF, TIFF and BMP.
 license: MIT
 compatibility: >
   Needs uv (installs the engine and a matching Python 3.11-3.13 by itself).
-  macOS, Linux and Windows; runs on CPU, or CUDA with onnxruntime-gpu. The
-  default model needs about 12 GB of free RAM and downloads once (~220 MB).
+  macOS, Linux and Windows; runs on CPU, or CUDA with onnxruntime-gpu. Product
+  photos work from ~3.5 GB of free RAM (best results from ~12 GB); hair, fur,
+  people and busy scenes need ~14.5 GB for the best model. Each model
+  downloads once (40 MB to 1 GB).
 allowed-tools: Bash(bulk-bg-remove:*) Bash(uv tool install bulk-bg-remove*) Bash(uv tool upgrade bulk-bg-remove*)
 metadata:
   version: "0.1.0"
@@ -22,9 +24,9 @@ metadata:
 # bulk-bg-remove
 
 Cut out the subject of every image the user points at, on this machine. The
-engine is the `bulk-bg-remove` command. It scans, plans the run against free
-RAM and CPU, processes the images and verifies every output. You drive it with
-`--json` and report back.
+engine is the `bulk-bg-remove` command: it scans, picks a model that fits the
+free RAM, plans the run, processes the images and verifies every output. You
+drive it with `--json` (one JSON object per line) and report back.
 
 ## 1. Make sure the engine is installed
 
@@ -32,91 +34,156 @@ RAM and CPU, processes the images and verifies every output. You drive it with
 bulk-bg-remove --version
 ```
 
-- Not found: install it with `uv tool install bulk-bg-remove`.
+- Not found: `uv tool install bulk-bg-remove`.
 - No `uv` either: stop and ask the user to install uv
   (https://docs.astral.sh/uv/getting-started/installation/), then retry. Do not
   run a remote install script without the user's OK. `pipx install bulk-bg-remove`
   also works.
 - Older than this skill's `metadata.version`: `uv tool upgrade bulk-bg-remove`.
+- Options and model names: `bulk-bg-remove --help`.
 
-## 2. Check the machine
-
-```bash
-bulk-bg-remove doctor --json
-```
-
-It prints one JSON object. Read `ready`, `checks` and `min_free_ram_gb`.
-If `checks.model_downloaded` is false, tell the user the first run downloads
-the model once (~220 MB for the default) before you start.
-
-## 3. Plan first, then run
-
-Always dry-run first: it scans and plans without loading the model.
+## 2. Look at the images, then plan
 
 ```bash
-bulk-bg-remove "<path>" --dry-run --json
+bulk-bg-remove "<path>" --dry-run --sample-sheet --json
 ```
 
-Read the `scan` and `plan` events (one JSON object per line):
+Add `--profile <name>` right away if the user's words already say what the
+images are. The dry-run loads no model and writes nothing next to the photos
+(the sheet goes to a temporary folder; no need to mention or delete it). Read
+the events:
 
-- `scan.inventory`: images found, formats, and `skipped` files with reasons.
-- `scan.output`: where the cut-outs will go.
-- `plan.blockers`: if this list is not empty, the run cannot start. See
-  "When the plan is blocked".
-- `plan.eta_seconds`, `plan.mode` (`queue` or `parallel`), `plan.workers`.
+- `scan.inventory`: images found, formats, and `skipped` (not images, hidden
+  image files, earlier `-no-bg` output folders) with a reason each.
+- `sample_sheet.path`: a contact sheet of up to 12 of the images. **Open it and
+  look.** Pick the profile that fits most of them:
 
-Then run it:
+  | Profile | The images are mostly |
+  |---|---|
+  | `uniform` (default) | products and objects with clean outlines: bottles, boxes, shoes, tools, furniture |
+  | `complex` | hair, fur, plants, wires, thin or see-through parts |
+  | `people` | portraits or groups of people |
+  | `scene` | cluttered scenes with no clean background |
+  | `drawing` | cartoons, anime, flat illustration |
+
+  The user's own words win over the sheet ("these are product shots"). With no
+  clear majority, choose by the hardest part: any hair or fur → `complex`, even
+  for portraits. If a folder really mixes kinds (products and portraits), offer
+  to run its sub-folders separately with their own profiles.
+- `plan`: `model` (what `auto` picked), `model_choice` (its score against the
+  best model for that profile, and the RAM the best one needs), `eta_seconds`,
+  `blockers`. If you picked a different profile than the first dry-run used,
+  dry-run again with `--profile <name>` (no `--sample-sheet` needed).
+
+## 3. Run
+
+If `plan.blockers` is empty, start right away, no need to ask:
 
 ```bash
-bulk-bg-remove "<path>" --json --yes
+bulk-bg-remove "<path>" --profile <profile> --json --yes
 ```
 
-- `<path>` is a file or a folder. Folders are searched recursively; files that
-  are not supported images are skipped and listed, never an error.
+- `--yes` only skips the engine's own "Start?" prompt.
+- stdout is pure JSON. stderr may show library warnings; judge the run by the
+  exit code and the `finished` event. `worker_loading`/`worker_ready` can repeat
+  mid-run when RAM is low (a worker restarting to free memory): not a crash.
+- If `plan.eta_seconds` is over ~120, run it in the background if your harness
+  allows, and report progress now and then from `job_done` events
+  (`done`/`total`, `source`).
 - Output: `shoe.jpg` → `shoe-no-bg/shoe.png`; `products/` → `products-no-bg/`
-  (sub-folders mirrored), always next to the input. `-o DIR` overrides it.
+  with sub-folders mirrored, next to the input. `-o DIR` overrides it. If two
+  inputs share a name (`product.jpg` + `product.png`), both get their extension
+  added (`product_jpg.png`, `product_png.png`); `job_started.destination` has
+  the final name.
 - Images already done are skipped on a re-run; `--force` redoes them.
-- Large batches take a while (the plan's ETA). Run the command in the
-  background if your harness allows it, and report progress from `job_done`
-  events instead of waiting silently.
 
-Exit codes: `0` all good · `1` some images failed · `2` blocked by the plan ·
-`130` interrupted.
-
-## 4. Report back
-
-Use the final `finished` event: `processed`, `already_done`, `failed`
-(path + reason), `not_processed`, `warnings`, `seconds` and `output`.
-Tell the user the output folder, the counts, and every failure or warning in
-one line each. Do not claim success for images listed in `failed`.
+Exit codes: `0` all good · `1` some images failed, or the model could not be
+prepared (see the `error` event) · `2` blocked by the plan · `130` interrupted.
 
 ## When the plan is blocked
 
-Never work around a blocker on your own. Show it to the user and offer the
-choices:
+Never work around a blocker on your own. Tell the user, in plain words, and
+offer the choices:
 
-- **Not enough free RAM** (`free RAM X GB is below the Y GB this model needs`):
-  ask the user to close apps and retry, or offer a lighter model
-  (`--model isnet-general-use`, ~5 GB free needed) and say plainly that hair, fur and
-  thin edges come out coarser. Only switch models if the user agrees.
+- **The best model does not fit, a weaker one does** (the blocker mentions
+  `--allow-fallback`): for this kind of image the light model is clearly worse
+  (e.g. hair or plants: about 5/10 instead of 7.6/10). Offer: close some apps
+  and retry, or go ahead with the lighter model by adding `--allow-fallback`.
+  If the user asked for the best quality, say that the lighter model goes
+  against it.
+- **Not enough free RAM for any model**: say how much is free and how much the
+  lightest model needs. If `scan.hardware.ram_total_gb` itself is below that,
+  closing apps cannot fix it: say this machine cannot run it.
 - **Not enough disk**: say how much is needed and where.
-- **No supported images**: list what was skipped and why.
+- **No supported images**: say what was skipped and why.
 
-Do not lower `--min-free-ram` to force a start: the machine would swap.
+The plan is the authority on RAM; `doctor` is only a quick check. Do not lower
+`--min-free-ram` to force a start: the machine would swap.
+
+When the model is lighter but within half a point of the best (for example
+product photos on a laptop with little free RAM), `auto` uses it on its own;
+mention it in one line of your report.
+
+**"Best quality"** needs no extra flag: keep `--model auto`, never add
+`--fast-edges`, and check `model_choice.gap == 0` (the best model for that
+profile is running). If the gap is above 0, say so and offer to free RAM.
+
+## 4. Report back
+
+From the final `finished` event:
+
+- **Done**: `processed` images in `output`. Mention any renamed output.
+- **Failed** (`failed`): one line each, in plain words. `image file is
+  truncated` or `cannot identify image` → the file is damaged; re-export or
+  re-download it. Do not retry the same file in a loop.
+- **Not processed** (`not_processed` and `scan.inventory.skipped`): group by
+  reason ("3 files are not images: notes.txt, fake.pdf, page.jpg"); collapse
+  long lists. Always mention hidden image files and earlier `-no-bg` folders if
+  the user said "all the photos".
+- **Warnings** (`warnings`, and `job_done.note`): `empty cut-out` (no subject
+  found) and `nothing removed` deserve a line each; `edge matting skipped` means
+  that image probably came out empty or ghostly; `edge matting at N MP to fit
+  free RAM` means its edges are a bit softer than usual.
+
+Do not claim success for images listed in `failed`. `processed` counts only
+outputs the engine verified (a readable RGBA file at the source's size; an
+empty or unchanged cut-out is listed in `warnings`), so no extra check is
+needed for the report. A good report is 3-5 lines:
+
+> Done: 37 of 38 photos cut out, in `~/Pictures/products-no-bg/` (transparent
+> PNG, same size, originals untouched). Model: birefnet-general-lite.
+> 1 failed: `IMG_0042.jpg` is damaged, re-export it.
+> 2 files skipped: not images (notes.txt, list.pdf).
+
+**Store and catalog photos.** Say what the output is: transparent, the same
+size as the original, not on white and not square-cropped, and contact
+shadows under the product are removed. Offer to help with white backgrounds,
+square crops or a soft shadow if their shop needs them; the engine does not
+do these.
 
 ## Options worth knowing
 
 | Flag | Use it when |
 |---|---|
-| `--format webp` | The user wants smaller files (still lossless). Default is PNG. |
-| `--clean-edges` | A coloured halo from the old background shows on hair or fur edges (green screen, strong colours). Recolours semi-transparent edge pixels only. |
-| `--fast-edges` | Speed matters more than hair and fur detail (skips edge matting). |
-| `--model NAME` | See `references/models.md` to pick a model for the kind of image. |
-| `--workers N` | Rarely: the plan already sizes workers to RAM and CPU. |
+| `--profile NAME` | Always, from step 2. |
+| `--model NAME` | The user names a model, or `references/models.md` says so for a special case. Default `auto`. |
+| `--format webp` | The user wants smaller files (still lossless). Default PNG. |
+| `--clean-edges` | A coloured halo from the old background shows on hair or fur (green screen, strong colours). Recolours semi-transparent edge pixels only. |
+| `--fast-edges` | Speed matters more than hair and fur detail. Never when the user asked for the best quality. |
 | `-o DIR` | The user wants the output somewhere specific. |
 
 The subject's pixels are copied bit for bit (except with `--clean-edges`, and
-only on edge pixels), and the output keeps the input's exact size.
+only on edge pixels), and the output keeps the input's exact size. No model
+keeps clear glass see-through; warn the user if the photos are glassware on a
+coloured background.
+
+## Checking the machine
+
+`bulk-bg-remove doctor --json` prints one object: `ready`, `checks` (HEIC,
+AVIF, WebP support, free RAM), `auto` (the model `auto` would pick right now
+for each profile) and `models` (each model's RAM need and whether it fits).
+It exits 2 when not ready; `checks` says why. A missing HEIC or AVIF check only
+matters if the folder has those files.
 
 ## For people, not agents
 
@@ -127,7 +194,6 @@ they can drop files or folders or paste images. Output lands in
 
 ## References
 
-- `references/models.md`: which model to use for which kind of image, with
-  measured speed and RAM.
+- `references/models.md`: every model's scores by kind of image, speed and RAM.
 - `references/json-events.md`: every `--json` event and its fields.
 - `references/troubleshooting.md`: install, model download, RAM and format problems.

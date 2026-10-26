@@ -18,7 +18,8 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - Tests: `uv run pytest`
 - Lint: `uv run ruff check . && uv run ruff format --check .`
 - Typecheck: `uv run mypy`
-- Run: `uv run bulk-bg-remove PATH [--yes] [--json] [--clean-edges|--fast-edges]`
+- Run: `uv run bulk-bg-remove PATH [--profile KIND] [--yes] [--json] [--clean-edges|--fast-edges]`
+  (`--model` defaults to `auto`; `--sample-sheet` with `--dry-run` writes a contact sheet)
 - Check a machine: `uv run bulk-bg-remove doctor [--json]`
 
 ## Structure
@@ -27,7 +28,8 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - `src/bulk_bg_remove/engine/model.py` — rembg session wrapper (load once per worker, reuse).
 - `src/bulk_bg_remove/domain.py` — shared domain types.
 - `src/bulk_bg_remove/bulk/` — the four phases: scan → plan → run → verify, plus `session.py`
-  (shared by CLI and UI) and `events.py` (the JSON event contract)
+  (shared by CLI and UI), `events.py` (the JSON event contract), `models.py` (`--model auto`:
+  per-profile scores from the blind-judged bench) and `sample.py` (contact sheet for agents)
 - `src/bulk_bg_remove/ui/` — local server + single-file page
 - `skills/bulk-bg-remove/` — the agent skill (`SKILL.md` + `references/`); plugin manifests in
   `.claude-plugin/`, `.codex-plugin/` and `.agents/plugins/`. The `--json` event contract is
@@ -51,6 +53,9 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - Conventional Commits on feature branches; never commit to `main` directly.
 
 ## Gotchas
+- `bulk/models.py` scores come from `scripts/bench.py` plus blind vision judging (see
+  `references/models.md`). Re-run both before changing a score or adding a model; every
+  ranked model needs a measured entry in `MODEL_PEAK_GB`.
 - rembg downloads model weights on first use to `~/.u2net/` (needs network once, ~224 MB).
 - RAM is the real limit. Measured peak per worker without matting (CPU, tuned session):
   `birefnet-general-lite` 9.4 GB · other BiRefNet variants 11.6 · `isnet-general-use` 2.4 ·
@@ -65,7 +70,9 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - A long-lived worker's RSS creeps to ~3x one image's peak (heap fragmentation from images
   of different sizes; `gc` and malloc pressure relief do not help). Workers restart when RSS
   ends an image more than 1 GB above the model's peak (`recycle_above_gb`). Measured on the
-  edge-heavy bench: lite 15.7 → 12.3 GB, silueta 9.1 → 3.9 GB.
+  edge-heavy bench: lite 15.7 → 12.3 GB, silueta 9.1 → 3.9 GB. They only restart while free RAM
+  is below reserve + full matting + margin (~5.5 GB): a reload costs ~2 s per image.
+- Worker stdout goes to devnull: pymatting prints harmless "incomplete Cholesky" warnings there.
 - On CPU a second worker adds only ~25% throughput (ONNX already uses every core);
   more workers are slower. `OMP_NUM_THREADS` sets intra-op threads per worker.
 - `rembg.remove(..., only_mask=True)` silently ignores `alpha_matting`. Edge matting is
@@ -76,5 +83,5 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - CoreML is listed by onnxruntime on macOS but BiRefNet does not compile to it; treat
   it as CPU.
 - 16-bit greyscale must be scaled, not converted: Pillow's `I;16 -> RGB` clips to white.
-- Local bench (not in git): `scripts/bench.py INPUT RESULTS [--model M ...]` writes
+- Bench (results and photos stay out of git): `scripts/bench.py INPUT RESULTS [--model M ...]` writes
   before/after sheets, time per image and peak RAM.

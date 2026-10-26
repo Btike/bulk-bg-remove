@@ -34,7 +34,8 @@ background from every photo in this folder"* and it:
 
 1. installs the engine (one `uv tool install`, ~500 MB with Python),
 2. checks your machine (free RAM, formats) and plans the run,
-3. cuts out every image with BiRefNet, in a queue or in parallel depending on RAM and CPU,
+3. looks at a sample, picks the best model that fits your free RAM (BiRefNet when there is
+   room), and cuts out every image in a queue or in parallel depending on RAM and CPU,
 4. verifies every output and tells you what worked, what failed and why.
 
 Output goes to a new `<name>-no-bg/` folder next to the input. Originals are never
@@ -84,8 +85,9 @@ bulk-bg-remove                              # opens a drag-and-drop page in your
 ## Requirements
 
 - macOS, Linux or Windows. CPU by default; CUDA with `onnxruntime-gpu`.
-- About **12 GB of free RAM** for the default model. Less RAM works with lighter
-  models; the agent picks one that fits and tells you the trade-off.
+- **3.5 GB of free RAM** is enough for product photos: the engine picks the best
+  model that fits (about 12 GB gets the best ones). For hair, fur and plants a
+  light model is clearly worse, so the agent asks before using one.
 - The model downloads once (~220 MB). After that everything runs offline.
 
 ## Credits
