@@ -111,7 +111,9 @@ bulk-bg-remove "<path>" --profile <profile> [finishing flags] --review-sheets --
   mid-run when RAM is low (a worker restarting to free memory): not a crash.
 - If `plan.eta_seconds` is over ~120, run it in the background if your harness
   allows, and report progress now and then from `job_done` events
-  (`done`/`total`, `source`).
+  (`done`/`total`, `source`). Read a background run's output file with your
+  file-reading tool, not with a shell command (`python`, `tail`…), which needs
+  extra approval.
 - Output: `shoe.jpg` → `shoe-no-bg/shoe.png` (`.jpg` with `--shop`); `products/` → `products-no-bg/`
   with sub-folders mirrored, next to the input. `-o DIR` overrides it. If two
   inputs share a name (`product.jpg` + `product.png`), both get their extension

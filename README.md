@@ -49,7 +49,7 @@ Selling online? `--shop` puts every product on white, square, 2000 px and ready 
 upload; `--background "#E6F6EA"` uses your brand colour instead.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/showcase.webp" width="880" alt="Four before-and-after pairs: three friends by train tracks, a black camera on black, a bottle of olive oil and white flowers on white, each cut out onto a transparency checkerboard">
+  <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/showcase.webp" width="880" alt="Four before-and-after pairs: three friends by train tracks, a black camera on black, a bottle of olive oil, and a white bicycle against a wall, each cut out onto a transparency checkerboard">
 </p>
 
 Reads JPG, PNG, HEIC, WebP, AVIF, TIFF and BMP (by content, not extension), follows
@@ -137,8 +137,8 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 
 Built on [rembg](https://github.com/danielgatis/rembg) and
 [BiRefNet](https://github.com/ZhengPeng7/BiRefNet). Showcase and demo photos (CC0, via
-Wikimedia Commons): Priscilla Du Preez, Dennis Klein, margenauer, Hisu lee, Mona Magnussen,
-Natasza Remesz, Dmitry Ratushny. The demo film is drawn in code (GSAP, rendered frame by
+Wikimedia Commons): Priscilla Du Preez, Dennis Klein, margenauer, Natasza Remesz,
+Mona Magnussen, Tiko Giorgadze, Dmitry Ratushny. The demo film is drawn in code (GSAP, rendered frame by
 frame in headless Chromium) from the engine's real output.
 
 ## License

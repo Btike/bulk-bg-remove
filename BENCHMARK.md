@@ -165,6 +165,18 @@ wine glass, three catalogue products), 12 kept as they were and reported.
 Every redone file differed from the first pass; none was copied over without
 a reviewer's `keep: new`.
 
+A third fresh session tested the shop flow from a clean install. The only
+request was *"use the bulk-bg-remove skill to remove the background from every
+photo in this folder; they are for my online store"*. It picked `--shop` on its
+own and processed **247 of 248**: every output was a 2000×2000 white JPEG
+carrying the `--shop` finish in its metadata. Five reviewers found 17 to
+redo. The agent redid them with the same finishing flags and kept **9** that
+were clearly better. In its report it listed the 5 that a second pass did not
+fix, the placeholders and scenes that do not belong in a shop, and the small
+originals that `--size 2000` had to enlarge, offering `--size 1000` as an
+option. The whole session cost about $5.70 in model usage, most of it for
+looking at review close-ups.
+
 ## Caveats
 
 - One judge (a vision model) per image, no second opinion: read gaps under
