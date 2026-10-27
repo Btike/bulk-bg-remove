@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "bulk-bg-remove",
+  "description": "Remove image backgrounds locally and in bulk. No uploads, no API keys.",
+  "owner": {
+    "name": "Btike",
+    "url": "https://github.com/Btike"
+  },
+  "plugins": [
+    {
+      "name": "bulk-bg-remove",
+      "description": "Cut out every photo in a folder with BiRefNet, on your own machine. Lossless transparent PNG/WebP, originals untouched.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

@@ -36,3 +36,46 @@ def test_webp_lossless_roundtrip_is_exact(tmp_path) -> None:
 def test_save_rejects_non_rgba(tmp_path) -> None:
     with pytest.raises(ValueError):
         save_rgba(Image.new("RGB", (10, 10)), tmp_path / "x.png", OutputFormat.PNG)
+
+
+def test_exif_orientation_is_applied(tmp_path) -> None:
+    path = tmp_path / "phone.jpg"
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90 CW to display
+    Image.new("RGB", (60, 40), (9, 9, 9)).save(path, exif=exif)
+    source = load_source(path)
+    assert source.rgb.size == (40, 60)  # upright, as displayed
+
+
+def test_heic_loads_as_rgb(tmp_path) -> None:
+    path = tmp_path / "iphone.heic"
+    Image.new("RGB", (32, 24), (120, 60, 30)).save(path, format="HEIF")
+    source = load_source(path)
+    assert source.rgb.mode == "RGB"
+    assert source.rgb.size == (32, 24)
+
+
+def test_icc_profile_is_carried_over(tmp_path) -> None:
+    from PIL import ImageCms
+
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    path = tmp_path / "with-icc.png"
+    Image.new("RGB", (8, 8)).save(path, icc_profile=icc)
+    assert load_source(path).icc_profile == icc
+
+
+def test_cmyk_profile_is_dropped(tmp_path) -> None:
+    path = tmp_path / "print.jpg"
+    Image.new("CMYK", (8, 8)).save(path, icc_profile=b"fake-cmyk-profile")
+    source = load_source(path)
+    assert source.rgb.mode == "RGB"
+    assert source.icc_profile is None
+
+
+def test_16bit_greyscale_is_scaled_not_clipped(tmp_path) -> None:
+    ramp = (np.arange(256, dtype=np.uint16) * 257).reshape(16, 16)  # full 0..65535 range
+    path = tmp_path / "grey16.png"
+    Image.fromarray(ramp).save(path)
+    rgb = np.asarray(load_source(path).rgb)
+    assert rgb.shape == (16, 16, 3)
+    assert np.array_equal(rgb[:, :, 0], np.arange(256, dtype=np.uint8).reshape(16, 16))

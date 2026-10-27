@@ -8,7 +8,8 @@ from enum import StrEnum
 class OutputFormat(StrEnum):
     PNG = "png"
     WEBP = "webp"
+    JPG = "jpg"  # only with an opaque --background: JPEG has no transparency
 
     @property
     def extension(self) -> str:
-        return ".png" if self is OutputFormat.PNG else ".webp"
+        return f".{self.value}"

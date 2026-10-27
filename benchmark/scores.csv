@@ -1,0 +1,81 @@
+set,image,tags,birefnet-general-lite,birefnet-general,birefnet-hrsod,birefnet-massive,birefnet-dis,birefnet-portrait,isnet-general-use,silueta,u2net,u2net_human_seg,isnet-anime
+edges,bicycle,product thin-structures white-on-white,7,7,7,8,7,1,6,3,3,1,0.5
+edges,broom-bristles,product thin-structures white-on-white,8,6,7,6,7,8,7,6,5,5,1
+edges,cat-fur,animal hair-fur,4,4,7,1,2,9,6,5,4,3,1
+edges,curly-hair,person hair-fur,5,8,6,7,8,5,6,6,6,4,0
+edges,dandelion-seed-head,plant thin-structures white-on-white,8,8,6,5,5,3,5,5,5,4,0
+edges,dog-long-fur,animal hair-fur scene-cluttered,5,8,7,5,5,6,4,4,4,2,1
+edges,hair-dark-background,person hair-fur dark-on-dark,6,7,5,6,7,6,4,5,6,7,0
+edges,hair-loose-light-background,person hair-fur,7,8,8,6,5,8,3,6,6,4,0
+edges,plant-thin-branches,plant thin-structures,5,8,6,5,5,5,6,2,2,0.5,1
+edges,wire-chair,product thin-structures,7,6,5,4,4,5,5,3,3,2,0
+materials,black-object-on-black-background,product dark-on-dark thin-structures,8,8,8,7,8,4,5,3,3,1,0
+materials,chrome-kettle,product reflective,9,8,9,9,8,8,8,7,8,0,1
+materials,glass-of-water,transparent-glass,8,8,8,8,8,1,8,8,8,3,0
+materials,product-with-hard-shadow,product,8,9,8,8,8,0,7,6,7,7,3
+materials,shiny-car,product reflective scene-cluttered,8,8,8,8,8,3,6,5,6,1,1
+materials,transparent-bottle-with-liquid,transparent-glass product white-on-white multiple-objects,8,8,7,4,7,5,5,4,4,2,6
+materials,white-object-on-white-background,plant white-on-white multiple-objects,8,7,7,6,7,6,2,4,5,4,5
+materials,wine-glass,transparent-glass thin-structures,4,6,4,6,4,1,2,4,4,4,0
+composition,camouflage-animal,animal hair-fur dark-on-dark,9,8,8,6,4,7,6,5,6,8,1
+composition,flat-logo,logo-flat text,10,10,10,10,10,0,5,4,4,1,1
+composition,group-of-people,person hair-fur multiple-objects,9,9,9,9,9,6,4,4,4,5,2
+composition,illustration-cartoon,illustration multiple-objects,8,7,7,7,6,4,5,5,5,1,9
+composition,landscape-no-subject,no-clear-subject scene-cluttered,3,5,5,2,1,3,1,2,2,1,1
+composition,multiple-objects,product multiple-objects transparent-glass thin-structures,5,5,7,6,5,7,3,8,7,1,1
+composition,person-busy-street,person scene-cluttered multiple-objects,6,5,2,6,6,8,3,3,4,7,1
+composition,products-on-store-shelf,no-clear-subject scene-cluttered multiple-objects,1,4,3,2,3,1,2,1,1,3,3
+composition,subject-cut-by-frame,product reflective,8,8,8,6,7,0,3,5,5,1,1
+formats,already-transparent,product text technical-format,9.5,9.5,9.5,9.5,9.5,9.5,9.5,9.5,9.5,2,1
+formats,avif,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,bmp,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,cmyk,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,grayscale,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1.5
+formats,grayscale-16bit,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1.5
+formats,heic-exif-rotated,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,iphone-style-portrait,person hair-fur,7.5,8,7.5,7.5,7.5,7.5,7.5,7.5,7.5,7,5
+formats,iphone-style-portrait-exif,person hair-fur technical-format,7.5,8,7.5,7.5,7.5,7.5,7.5,7.5,7.5,7,5
+formats,jpeg-exif-rotated,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,0.5
+formats,large-45mp,animal thin-structures technical-format,9,9,9,9,9,8.5,5.5,6,6,4,2
+formats,palette,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,panorama-5to1,no-clear-subject thin-structures technical-format,6,7,3.5,6.5,5,3,5,1.5,1.5,1,0
+formats,tiff,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,tiny-180px,product transparent-glass white-on-white technical-format,8,7,6.5,7,6.5,6.5,7,7,7,7.5,0
+formats,webp,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,with-icc-profile,product transparent-glass white-on-white text technical-format,8.5,8.5,8.5,8.5,8,8,8.5,8.5,8.5,8.5,1
+formats,wrong-extension-really-jpeg,product thin-structures technical-format,9,9,9,9,9,8,7,7,7,4,1
+catalogue,catalogue-01,product,9,9,9,9,9,9,9,9,9,0.5,2
+catalogue,catalogue-02,product reflective,9,9,8,9,9,8,9,6,7,1,4
+catalogue,catalogue-03,product white-on-white,9,9,9,9,9,9,9,9,9,9,1
+catalogue,catalogue-04,product transparent-glass,9,9,9,9,9,9,9,9,9,9,1
+catalogue,catalogue-05,product white-on-white,9,9,9,9,9,9,9,9,9,9,2
+catalogue,catalogue-06,product thin-structures,9,9,9,9,9,6,9,9,9,3,2
+catalogue,catalogue-07,product thin-structures,9,9,9,9,9,9,7,5,5,3,8
+catalogue,catalogue-08,product thin-structures reflective,9,9,9,9,9,4,9,4,6,1,2
+catalogue,catalogue-09,product thin-structures white-on-white,5,5,5,5,5,4,5,8,5,0.5,4
+catalogue,catalogue-10,product multiple-objects,7,9,9,9,9,3,8,8,8,0.5,1
+catalogue,catalogue-11,logo-flat text,9,3,1,3,7,0,9,4,4,4,0
+catalogue,catalogue-12,product text,9,9,9,9,9,9,3,9,8,8,0
+catalogue,catalogue-13,product thin-structures multiple-objects,9,9,8,9,9,7,8,3,4,2,0.5
+catalogue,catalogue-14,product multiple-objects,8,9,9,9,9,9,6,9,9,3,1
+catalogue,catalogue-15,product white-on-white,9,9,9,9,9,9,9,9,9,9,9
+catalogue,catalogue-16,product white-on-white,9,9,9,9,9,9,9,9,9,9,3
+catalogue,catalogue-17,product,9,9,9,9,9,9,9,9,9,6,9
+catalogue,catalogue-18,product,9,9,9,9,9,9,9,9,9,9,9
+catalogue,catalogue-19,product white-on-white text,9,8,8,9,9,9,6,6,6,6,0
+catalogue,catalogue-20,product white-on-white text,9,9,9,9,3,9,3,9,9,1,0
+catalogue,catalogue-21,product transparent-glass white-on-white text,8,8,8,8,8,5,9,8,7,2,8
+catalogue,catalogue-22,product white-on-white text,9,9,9,9,9,3,9,9,9,3,1
+catalogue,catalogue-23,product white-on-white text,9,9,9,9,9,9,9,9,9,9,9
+catalogue,catalogue-24,product white-on-white,8,9,8,9,9,9,2,8,9,9,1
+catalogue,catalogue-25,product person,9,9,9,9,9,9,7,7,7,9,9
+catalogue,catalogue-26,product thin-structures multiple-objects white-on-white,9,8,9,9,9,9,9,3,5,2,0
+catalogue,catalogue-27,product thin-structures white-on-white,9,9,9,9,8,8,7,8,7,4,1
+catalogue,catalogue-28,product thin-structures white-on-white,9,8,8,9,9,8,7,3,3,2,2
+catalogue,catalogue-29,product multiple-objects thin-structures,7,9,9,9,8,9,9,6,5,1,6
+catalogue,catalogue-30,product,9,9,9,9,9,9,9,8,8,9,0
+catalogue,catalogue-31,product thin-structures white-on-white,9,8,8,9,8,8,8,8,7,2,1
+catalogue,catalogue-32,product scene-cluttered,8,8,9,9,9,8,6,9,7,5,5
+catalogue,catalogue-33,product white-on-white text,9,9,9,9,9,3,9,9,9,3,1
+catalogue,catalogue-34,product white-on-white,7,5,5,5,5,6,6,8,6,1,2
+catalogue,catalogue-35,product thin-structures,8,7,7,7,7,7,7,8,7,2,3
