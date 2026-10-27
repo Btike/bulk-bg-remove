@@ -12,7 +12,7 @@
 <p align="center">
   <img alt="works with" src="https://img.shields.io/badge/works%20with-Claude%20Code%20·%20Codex%20·%20any%20agent-0d1117?style=flat-square">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-0d1117?style=flat-square">
-  <img alt="status" src="https://img.shields.io/badge/status-pre--release-0d1117?style=flat-square">
+  <a href="https://pypi.org/project/bulk-bg-remove/"><img alt="PyPI" src="https://img.shields.io/pypi/v/bulk-bg-remove?style=flat-square&color=0d1117&label=pypi"></a>
 </p>
 
 <p align="center">
@@ -26,8 +26,6 @@
   The default scored <strong>8.6/10 on real product catalogue photos</strong>, the best of the 11, at <strong>3.2 s per photo</strong> on a laptop CPU.<br>
   <sub>Apple M5, CPU only, one worker. Method, every score and the RAM numbers: <a href="https://github.com/Btike/bulk-bg-remove/blob/main/BENCHMARK.md">BENCHMARK.md</a>.</sub>
 </p>
-
-> **Pre-release.** Not on PyPI yet; the install lines below go live with v0.1.
 
 ## What it is
 
