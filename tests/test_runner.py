@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import json
+import signal
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from bulk_bg_remove.bulk.events import Event
-from bulk_bg_remove.bulk.runner import Job, Runner, RunSettings
+from bulk_bg_remove.bulk.runner import Job, Runner, RunSettings, crash_reason
+from bulk_bg_remove.cli import run
 from bulk_bg_remove.core.matting import EdgeMode
 from bulk_bg_remove.domain import OutputFormat
 from conftest import MakeImage
-from fakes import FAILING_FACTORY, FAKE_FACTORY
+from fakes import FAILING_FACTORY, FAKE_FACTORY, ILLEGAL_FACTORY
 
 
 def settings(workers: int = 2, factory: str = FAKE_FACTORY, **overrides: float) -> RunSettings:
@@ -171,3 +176,26 @@ def test_a_worker_keeps_running_while_the_machine_has_room(
     ).run()
     assert all(o.ok for o in outcomes)
     assert types(events).count("worker_loading") == 1
+
+
+def test_crash_reasons_name_the_signal() -> None:
+    assert "SIGILL" in crash_reason(-signal.SIGILL)
+    assert "segmentation fault" in crash_reason(-signal.SIGSEGV)
+    assert "exit code 3" in crash_reason(3)
+    if hasattr(signal, "SIGKILL"):
+        assert "out of memory" in crash_reason(-signal.SIGKILL)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_a_worker_killed_by_an_illegal_instruction_says_so(
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    make_image("in/a.jpg")
+    code = run(
+        [str(tmp_path / "in"), "--json", "--yes", "--min-free-ram", "0.1"],
+        model_factory=ILLEGAL_FACTORY,
+    )
+    events = [json.loads(line) for line in capfd.readouterr().out.splitlines() if line]
+    assert code == 1
+    failed = events[-1]["failed"]
+    assert len(failed) == 1 and "SIGILL" in failed[0]["reason"]

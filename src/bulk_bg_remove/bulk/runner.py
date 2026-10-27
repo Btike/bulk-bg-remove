@@ -110,6 +110,22 @@ def _stage_reporter(
     return report
 
 
+def crash_reason(exitcode: int | None) -> str:
+    """Why a worker died without reporting, from its exit code (-N: killed by signal N)."""
+    if exitcode == -signal.SIGILL:
+        return (
+            "worker process crashed: the CPU rejected an instruction (SIGILL). Known in Linux "
+            "VMs on Apple M4/M5 chips, which advertise SVE instructions the chip cannot run; "
+            "run on macOS directly or on a regular Linux machine"
+        )
+    sigkill = getattr(signal, "SIGKILL", None)  # absent on Windows
+    if sigkill is not None and exitcode == -sigkill:
+        return "worker process was killed by the system (out of memory?)"
+    if exitcode == -signal.SIGSEGV:
+        return "worker process crashed (segmentation fault)"
+    return f"worker process crashed (exit code {exitcode})"
+
+
 def _matting_budget_gb(megapixels: float, edges: EdgeMode) -> float:
     """What edge matting may use now: free RAM minus the reserve and the
     full-resolution step, within its bounds."""
@@ -297,7 +313,7 @@ class Runner:
                             idle.remove(worker)
                         job = busy.pop(worker, None)
                         if job is not None:
-                            reason = "worker process crashed (out of memory?)"
+                            reason = crash_reason(processes[worker].exitcode)
                             outcomes[job.id] = JobOutcome(job, ok=False, seconds=0.0, reason=reason)
                             self._finished(
                                 "job_failed", job, outcomes, {"worker": worker, "reason": reason}

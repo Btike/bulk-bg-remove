@@ -43,3 +43,17 @@ class NoisyRemover(FakeRemover):
     def alpha_mask(self, image: Image.Image) -> Image.Image:
         print("PERFORMANCE WARNING: something a library printed")
         return super().alpha_mask(image)
+
+
+ILLEGAL_FACTORY = "fakes:IllegalInstructionRemover"
+
+
+class IllegalInstructionRemover(FakeRemover):
+    """Dies the way numba/ONNX Runtime do when the CPU rejects an instruction."""
+
+    def alpha_mask(self, image: Image.Image) -> Image.Image:
+        import os
+        import signal
+
+        os.kill(os.getpid(), signal.SIGILL)
+        return super().alpha_mask(image)

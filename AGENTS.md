@@ -22,9 +22,13 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   (`--model` defaults to `auto`; `--sample-sheet` with `--dry-run` writes a contact sheet)
 - Check a machine: `uv run bulk-bg-remove doctor [--json]`
 - **CI runs locally**: `scripts/ci.sh` (lock, ruff, mypy, tests on Python 3.11–3.13, wheel
-  build, plugin manifests, Linux tests in Docker when it is running); `--quick` for lint,
-  types and tests only. Hosted CI (`.github/workflows/ci.yml`) is skipped while the repo is
-  private. Run the full script before every commit.
+  build, plugin manifests); `--quick` for lint, types and tests only; `--linux` adds the suite
+  on Linux x86_64 in Docker with the real-model smoke test (~10 min, emulated: run it before a
+  merge or release). Hosted CI (`.github/workflows/ci.yml`, Linux/macOS/Windows) is skipped
+  while the repo is private. Run the full script before every commit.
+- Linux arm64 VMs on Apple M4/M5 (Docker, UTM, Lima) advertise SVE the chip cannot run:
+  numba and ONNX Runtime die with SIGILL there. Test Linux as x86_64; the runner reports a
+  SIGILL crash in plain words (`crash_reason` in `bulk/runner.py`).
 
 ## Structure
 - `src/bulk_bg_remove/core/` — pure image logic: `io.py`, `matting.py`, `compositing.py`,
@@ -39,7 +43,10 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - `skills/bulk-bg-remove/` — the agent skill (`SKILL.md` + `references/`); plugin manifests in
   `.claude-plugin/`, `.codex-plugin/` and `.agents/plugins/`. The `--json` event contract is
   documented in `references/json-events.md`: update it with any event change.
-- `tests/` — unit tests for pure logic, integration tests with a fake model.
+- `tests/` — unit tests for pure logic, integration tests with a fake model, and one
+  real-model smoke test (`test_real_model.py`, `silueta`, 43 MB download) that runs only with
+  `BULK_BG_REMOVE_REAL_MODEL=1` — set by `scripts/ci.sh --linux` and in hosted CI on
+  Linux, macOS and Windows.
 
 ## Quality contract (do not break)
 - NEVER resample or re-encode the subject's RGB. Only the alpha mask is resized

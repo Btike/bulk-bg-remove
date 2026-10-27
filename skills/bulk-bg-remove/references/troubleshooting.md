@@ -23,6 +23,16 @@
 - During a run, if free RAM drops below the reserve, new images wait (`paused`)
   and continue when memory frees up (`resumed`). Nothing is lost.
 - Very large photos (40+ MP) use more memory per image; the plan warns about it.
+- `worker process was killed by the system (out of memory?)`: the OS stopped it,
+  usually for memory. Close apps and re-run the same command: done images are kept.
+
+## Crashes
+
+- `the CPU rejected an instruction (SIGILL)`: the machine's processor refused
+  code the libraries chose for it. This happens in Linux virtual machines on Apple
+  M4/M5 chips (Docker, UTM, Lima), which advertise SVE instructions the chip cannot
+  run. It is not a problem with the photos: run the skill on macOS directly, or on
+  a regular Linux machine.
 
 ## Images
 

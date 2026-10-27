@@ -27,3 +27,5 @@ jobs:
       - run: uv run --locked ruff format --check .
       - run: uv run --locked mypy
       - run: uv run --locked pytest -q
+        env:
+          BULK_BG_REMOVE_REAL_MODEL: "1"  # also run the real-model smoke test
