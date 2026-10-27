@@ -92,8 +92,8 @@ user's words point to a shop (store, marketplace, Amazon, Shopify, catalogue,
 | A brand colour behind the product | `--background "#RRGGBB"` (plus `--square`, `--pad PCT`, `--size PX` as needed) |
 | Transparent, but square and trimmed | `--square --pad 5` |
 
-If they mention a shop but not what it needs, ask once, in one question:
-transparent cut-outs, or ready to upload (white, square)? Otherwise do not ask.
+A shop with no further detail means `--shop`: do not stop to ask. Say in the
+report that transparent cut-outs or a brand colour are one flag away.
 
 ## 3. Run
 
