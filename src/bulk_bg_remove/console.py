@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import sys
@@ -57,9 +58,12 @@ class JsonReporter:
         try:
             sys.stdout.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
             sys.stdout.flush()
-        except BrokenPipeError:
-            # The reader closed the pipe (e.g. `| head`). Keep working quietly and
-            # point stdout at devnull so the interpreter's final flush does not fail.
+        except OSError as exc:
+            # The reader closed the pipe (e.g. `| head`): BrokenPipeError on POSIX,
+            # EINVAL on Windows. Keep working quietly and point stdout at devnull so
+            # the interpreter's final flush does not fail.
+            if not isinstance(exc, BrokenPipeError) and exc.errno != errno.EINVAL:
+                raise
             self._reader_gone = True
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
