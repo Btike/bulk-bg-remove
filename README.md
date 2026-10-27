@@ -16,8 +16,10 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/showcase.webp" width="880" alt="Four before-and-after pairs: three friends by train tracks, a black camera on black, a bottle of olive oil and white flowers on white, each cut out onto a transparency checkerboard">
+  <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/demo.webp" width="880" alt="Demo: an agent is asked to remove the background from every photo in a folder; a bottle of olive oil loses its background, a reviewer catches background left by a cat's ear and keeps the redone cut-out, the products switch between white, mint and rose backgrounds and land in an online store">
 </p>
+
+<p align="center"><strong>Other skills run a model. This one checks every cut-out and redoes the bad ones.</strong></p>
 
 <p align="center">
   <strong>11 models benchmarked on 80 hard images, judged blind at zoom.</strong><br>
@@ -45,6 +47,10 @@ touched, and the subject's pixels are copied bit for bit: only the alpha channel
 
 Selling online? `--shop` puts every product on white, square, 2000 px and ready to
 upload; `--background "#E6F6EA"` uses your brand colour instead.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Btike/bulk-bg-remove/main/assets/showcase.webp" width="880" alt="Four before-and-after pairs: three friends by train tracks, a black camera on black, a bottle of olive oil and white flowers on white, each cut out onto a transparency checkerboard">
+</p>
 
 Reads JPG, PNG, HEIC, WebP, AVIF, TIFF and BMP (by content, not extension), follows
 EXIF rotation, and handles CMYK, 16-bit and 45 MP photos.
@@ -130,8 +136,10 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 ## Credits
 
 Built on [rembg](https://github.com/danielgatis/rembg) and
-[BiRefNet](https://github.com/ZhengPeng7/BiRefNet). Showcase photos (CC0, via
-Wikimedia Commons): Priscilla Du Preez, Dennis Klein, margenauer, Hisu lee.
+[BiRefNet](https://github.com/ZhengPeng7/BiRefNet). Showcase and demo photos (CC0, via
+Wikimedia Commons): Priscilla Du Preez, Dennis Klein, margenauer, Hisu lee, Mona Magnussen,
+Natasza Remesz, Dmitry Ratushny. The demo film is drawn in code (GSAP, rendered frame by
+frame in headless Chromium) from the engine's real output.
 
 ## License
 
