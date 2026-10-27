@@ -146,6 +146,16 @@ class TerminalReporter:
             f"[dim]model {_str(data.get('model'))} · edges {_str(data.get('edges'))} · "
             f"needs {_num(data['min_free_ram_gb']):.1f} GB free RAM[/]"
         )
+        finish = data.get("finish")
+        if isinstance(finish, dict):
+            parts = [
+                f"background {_str(finish['background'])}" if finish.get("background") else "",
+                "square" if finish.get("square") else "",
+                f"{_num(finish.get('pad')):g}% margin" if finish.get("pad") else "",
+                f"{int(_num(finish.get('size')))} px" if finish.get("size") else "",
+                _str(data.get("output_format")),
+            ]
+            self.line(f"[dim]finish: {' · '.join(p for p in parts if p)}[/]")
         choice = data.get("model_choice")
         if isinstance(choice, dict):
             gap = _num(choice.get("gap"))

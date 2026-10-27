@@ -25,12 +25,17 @@ from .bulk.runner import DEFAULT_FACTORY
 from .bulk.sample import write_sample_sheet
 from .bulk.session import BulkOptions, BulkSession, ModelUnavailable
 from .console import JsonReporter, TerminalReporter
+from .core.finish import Finish, parse_colour
 from .core.matting import EdgeMode
 from .domain import OutputFormat
 from .engine.model import DEFAULT_MODEL
 from .formats import SUPPORTED_EXTENSIONS
 
 EXIT_OK, EXIT_FAILED, EXIT_BLOCKED, EXIT_INTERRUPTED = 0, 1, 2, 130
+
+# --shop: what marketplaces ask for: white, square, the product filling ~85%,
+# 2000 px (zoomable), JPEG.
+SHOP_PRESET = ("--background white", "--square", "--pad 7.5", "--size 2000", "--format jpg")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,8 +65,32 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         dest="output_format",
         choices=[f.value for f in OutputFormat],
-        default=OutputFormat.PNG.value,
-        help="output format, always lossless (default: png)",
+        help="png (default) or webp, both lossless; jpg (quality 95) needs --background",
+    )
+    shop = parser.add_argument_group(
+        "ready for a shop", "Optional finishing; without it the cut-out is saved as is."
+    )
+    shop.add_argument(
+        "--background",
+        metavar="COLOUR",
+        help="put the cut-out on a solid colour: white, black or #RRGGBB",
+    )
+    shop.add_argument(
+        "--square", action="store_true", default=None, help="a square canvas around the subject"
+    )
+    shop.add_argument(
+        "--pad",
+        type=float,
+        metavar="PCT",
+        help="crop to the subject and leave this margin on each side, in %% of the canvas",
+    )
+    shop.add_argument(
+        "--size", type=int, metavar="PX", help="scale the result so its longest side is PX"
+    )
+    shop.add_argument(
+        "--shop",
+        action="store_true",
+        help=f"shortcut for {' '.join(SHOP_PRESET)} (any of them can still be set)",
     )
     parser.add_argument(
         "--model",
@@ -138,10 +167,31 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
     if args.path is None or args.ui:
         if args.json:
             parser.error("--json needs a PATH (the UI is for people; agents use the CLI)")
+        finishing = (args.shop, args.background, args.square, args.pad, args.size)
+        if any(v is not None and v is not False for v in finishing):
+            parser.error("--shop, --background, --square, --pad and --size need a PATH, not the UI")
         return run_ui(args)
+    if args.shop:
+        args.background = args.background or "white"
+        args.square = True if args.square is None else args.square
+        args.pad = 7.5 if args.pad is None else args.pad
+        args.size = 2000 if args.size is None else args.size
+        args.output_format = args.output_format or OutputFormat.JPG.value
+    output_format = OutputFormat(args.output_format or OutputFormat.PNG.value)
+    try:
+        finish = Finish(
+            background=parse_colour(args.background) if args.background else None,
+            square=bool(args.square),
+            pad=args.pad or 0.0,
+            size=args.size,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    if output_format is OutputFormat.JPG and not finish.opaque:
+        parser.error("--format jpg needs --background: JPEG has no transparency")
     options = BulkOptions(
         model=args.model,
-        output_format=OutputFormat(args.output_format),
+        output_format=output_format,
         edges=args.edges,
         workers=args.workers,
         min_free_ram_gb=args.min_free_ram,
@@ -151,6 +201,7 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         allow_fallback=args.allow_fallback,
         only=tuple(args.only),
         review_sheets=args.review_sheets,
+        finish=finish,
     )
 
     terminal = None if args.json else TerminalReporter()
@@ -218,7 +269,7 @@ def run_ui(args: argparse.Namespace) -> int:
 
     terminal = TerminalReporter()
     terminal.banner()
-    defaults = {"m": args.model, "e": str(args.edges), "f": args.output_format}
+    defaults = {"m": args.model, "e": str(args.edges), "f": args.output_format or "png"}
     try:
         serve(
             echo=terminal,

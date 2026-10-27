@@ -94,21 +94,21 @@ def _on(background: str, cutout: Image.Image) -> Image.Image:
     return tile
 
 
-def _review_tiles(source: Path, output: Path) -> list[Image.Image]:
+def _review_tiles(source: Path, cutout_path: Path) -> list[Image.Image]:
     original = load_source(source).rgb
     original.thumbnail((REVIEW_TILE, REVIEW_TILE))
     first = Image.new("RGB", (REVIEW_TILE, REVIEW_TILE), (40, 40, 40))
     first.paste(
         original, ((REVIEW_TILE - original.width) // 2, (REVIEW_TILE - original.height) // 2)
     )
-    with Image.open(output) as opened:
+    with Image.open(cutout_path) as opened:
         cutout = opened.convert("RGBA")
     cutout.thumbnail((REVIEW_TILE, REVIEW_TILE))
     return [first, _on("black", cutout), _on("white", cutout)]
 
 
-def _write_zoom(output: Path, destination: Path) -> None:
-    with Image.open(output) as opened:
+def _write_zoom(cutout_path: Path, destination: Path) -> None:
+    with Image.open(cutout_path) as opened:
         cutout = opened.convert("RGBA")
     cutout.thumbnail((ZOOM_SIZE, ZOOM_SIZE), Image.Resampling.LANCZOS)
     width, height = cutout.size
@@ -127,8 +127,12 @@ def _label(output: Path, output_root: Path) -> str:
         return output.name
 
 
-def write_review_sheets(pairs: Sequence[tuple[Path, Path]], output_root: Path) -> list[ReviewSheet]:
-    """Sheets of up to 12 (source, output) pairs: original | on black | on white."""
+def write_review_sheets(
+    pairs: Sequence[tuple[Path, Path, Path]], output_root: Path
+) -> list[ReviewSheet]:
+    """Sheets of up to 12 (source, output, cut-out) entries: original | on black |
+    on white. The cut-out is the transparent result before any finishing (often
+    the output itself); entries are labelled by the output's path."""
     folder = Path(tempfile.mkdtemp(prefix="bulk-bg-remove-review-"))
     entry_w = 3 * REVIEW_TILE + 16
     entry_h = REVIEW_TILE + LABEL_HEIGHT + 6
@@ -139,15 +143,15 @@ def write_review_sheets(pairs: Sequence[tuple[Path, Path]], output_root: Path) -
         sheet = Image.new("RGB", (REVIEW_PER_ROW * entry_w, rows * entry_h), (128, 128, 128))
         draw = ImageDraw.Draw(sheet)
         entries = []
-        for index, (source, output) in enumerate(chunk):
+        for index, (source, output, cutout) in enumerate(chunk):
             number = start + index + 1
             label = _label(output, output_root)
             x, y = (index % REVIEW_PER_ROW) * entry_w, (index // REVIEW_PER_ROW) * entry_h
             draw.text((x + 4, y + 3), f"#{number}  {label[-70:]}", fill="white")
             zoom: Path | None = None
             try:
-                tiles = _review_tiles(source, output)
-                _write_zoom(output, folder / f"zoom-{number}.jpg")
+                tiles = _review_tiles(source, cutout)
+                _write_zoom(cutout, folder / f"zoom-{number}.jpg")
                 zoom = folder / f"zoom-{number}.jpg"
             except Exception:  # noqa: BLE001 — show the gap, keep the sheet
                 draw.text((x + 8, y + entry_h // 2), "unreadable", fill="red")

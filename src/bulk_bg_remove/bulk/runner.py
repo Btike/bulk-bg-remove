@@ -24,6 +24,7 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.queues import Queue
 from pathlib import Path
 
+from ..core.finish import Finish
 from ..core.matting import MATTING_MAX_GB, MATTING_MIN_GB, EdgeMode, fullres_matting_gb
 from ..core.pipeline import Stage, process_image
 from ..domain import OutputFormat
@@ -49,6 +50,7 @@ class Job:
     id: int
     source: Path
     destination: Path
+    preview: Path | None = None  # small transparent copy of the cut-out, for review
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +63,7 @@ class RunSettings:
     pause_below_gb: float
     pause_timeout_s: float = 600.0
     model_factory: str = DEFAULT_FACTORY
+    finish: Finish = Finish()  # background, square, margin, size (default: none)
     # Restart a worker whose memory grew past this after an image (None: never).
     # Images of different sizes fragment the heap, so a long-lived worker's RSS
     # creeps up to ~3x a single image's peak; a fresh process starts clean.
@@ -129,7 +132,7 @@ def _should_retire(settings: RunSettings) -> bool:
 
 def worker_main(
     worker: int,
-    tasks: Queue[tuple[int, str, str] | None],
+    tasks: Queue[tuple[int, str, str, str] | None],
     messages: Queue[WorkerMessage],
     settings: RunSettings,
 ) -> None:
@@ -152,7 +155,7 @@ def worker_main(
     messages.put(("ready", worker))
 
     while (task := tasks.get()) is not None:
-        job_id, source, destination = task
+        job_id, source, destination, preview = task
         started = time.monotonic()
         final = Path(destination)
         temp = _temp_path(final)
@@ -166,6 +169,8 @@ def worker_main(
                 edges=settings.edges,
                 on_stage=_stage_reporter(messages, worker, job_id),
                 matting_budget_gb=_matting_budget_gb,
+                finish=settings.finish,
+                cutout_preview=Path(preview) if preview else None,
             )
             os.replace(temp, final)
         except Exception as exc:  # noqa: BLE001 — one bad file must not stop the batch
@@ -230,7 +235,7 @@ class Runner:
         ctx = mp.get_context("spawn")
         messages: Queue[WorkerMessage] = ctx.Queue()
         count = max(1, min(self._settings.workers, len(self._jobs)))
-        inboxes: list[Queue[tuple[int, str, str] | None]] = [ctx.Queue() for _ in range(count)]
+        inboxes: list[Queue[tuple[int, str, str, str] | None]] = [ctx.Queue() for _ in range(count)]
 
         def start(worker: int) -> BaseProcess:
             process = ctx.Process(
@@ -328,7 +333,9 @@ class Runner:
                     worker = idle.pop(0)
                     job = self._pending.popleft()
                     busy[worker] = job
-                    inboxes[worker].put((job.id, str(job.source), str(job.destination)))
+                    inboxes[worker].put(
+                        (job.id, str(job.source), str(job.destination), str(job.preview or ""))
+                    )
                     self._emit(
                         Event(
                             "job_started",

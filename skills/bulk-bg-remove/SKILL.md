@@ -4,8 +4,9 @@ description: >
   Remove image backgrounds locally and in bulk: one photo, a folder (searched
   recursively) or many folders, with BiRefNet and lighter models picked to fit
   the machine. No uploads, no API keys, no per-image cost. Writes lossless
-  transparent PNG/WebP to a new "<name>-no-bg" folder next to the input and
-  never touches the originals. Use when the user asks to remove, cut out or
+  transparent PNG/WebP, or shop-ready photos (white or any colour, square,
+  sized, JPEG), to a new "<name>-no-bg" folder next to the input and never
+  touches the originals. Use when the user asks to remove, cut out or
   erase a background, make a transparent PNG, isolate a product, person, animal
   or object, prepare product or catalog photos, or replace remove.bg for a
   batch. Reads JPG, PNG, HEIC, WebP, AVIF, TIFF and BMP.
@@ -81,12 +82,25 @@ the events:
   `blockers`. If you picked a different profile than the first dry-run used,
   dry-run again with `--profile <name>` (no `--sample-sheet` needed).
 
+**What the output is for.** Transparent cut-outs are the default. When the
+user's words point to a shop (store, marketplace, Amazon, Shopify, catalogue,
+"white background", "square"), add the finishing flags to the run:
+
+| They want | Flags |
+|---|---|
+| Photos for a shop or marketplace | `--shop`: white, square, product filling ~85%, 2000 px, JPEG |
+| A brand colour behind the product | `--background "#RRGGBB"` (plus `--square`, `--pad PCT`, `--size PX` as needed) |
+| Transparent, but square and trimmed | `--square --pad 5` |
+
+If they mention a shop but not what it needs, ask once, in one question:
+transparent cut-outs, or ready to upload (white, square)? Otherwise do not ask.
+
 ## 3. Run
 
 If `plan.blockers` is empty, start right away, no need to ask:
 
 ```bash
-bulk-bg-remove "<path>" --profile <profile> --review-sheets --json --yes
+bulk-bg-remove "<path>" --profile <profile> [finishing flags] --review-sheets --json --yes
 ```
 
 - `--yes` only skips the engine's own "Start?" prompt.
@@ -98,12 +112,13 @@ bulk-bg-remove "<path>" --profile <profile> --review-sheets --json --yes
 - If `plan.eta_seconds` is over ~120, run it in the background if your harness
   allows, and report progress now and then from `job_done` events
   (`done`/`total`, `source`).
-- Output: `shoe.jpg` → `shoe-no-bg/shoe.png`; `products/` → `products-no-bg/`
+- Output: `shoe.jpg` → `shoe-no-bg/shoe.png` (`.jpg` with `--shop`); `products/` → `products-no-bg/`
   with sub-folders mirrored, next to the input. `-o DIR` overrides it. If two
   inputs share a name (`product.jpg` + `product.png`), both get their extension
   added (`product_jpg.png`, `product_png.png`); `job_started.destination` has
   the final name.
-- Images already done are skipped on a re-run; `--force` redoes them.
+- Images already done are skipped on a re-run; `--force` redoes them. Changing
+  the finishing flags (another colour, size or margin) redoes them by itself.
 
 Exit codes: `0` all good · `1` some images failed, or the model could not be
 prepared (see the `error` event) · `2` blocked by the plan · `130` interrupted.
@@ -141,6 +156,8 @@ profile is running). If the gap is above 0, say so and offer to free RAM.
 The engine checks files, not looks. `--review-sheets` (step 3) adds a
 `review_sheets` event just before `finished`: sheet PNGs in a temporary folder,
 each showing up to 12 cut-outs numbered `#n`, as original | on black | on white.
+With a `--background` they still show the transparent cut-out (a leftover of a
+white background would be invisible on white); the finish itself is mechanical.
 
 1. **Get a fresh pair of eyes.** If you can start a subagent (Claude Code: the
    `bg-reviewer` agent this plugin ships, or any subagent; Codex: a sub-agent),
@@ -157,8 +174,11 @@ each showing up to 12 cut-outs numbered `#n`, as original | on black | on white.
    flags, never two at once:
 
    ```bash
-   bulk-bg-remove "<path>" -o "<name>-retry-no-bg" --profile <profile> --only <source> [--only <source> ...] <fix flags> --review-sheets --json --yes
+   bulk-bg-remove "<path>" -o "<name>-retry-no-bg" --profile <profile> --only <source> [--only <source> ...] <fix flags> [finishing flags] --review-sheets --json --yes
    ```
+
+   Keep the first run's finishing flags (`--shop`, `--background`…) so the
+   new file can replace the old one.
 
    `--only` takes the absolute `source`, a path relative to `<path>`, or a bare
    file name if it is unique, and keeps the usual output names (the same
@@ -191,10 +211,12 @@ From the final `finished` event:
 - **Warnings** (`warnings`, and `job_done.note`): `empty cut-out` (no subject
   found) and `nothing removed` deserve a line each; `edge matting skipped` means
   that image probably came out empty or ghostly; `edge matting at N MP to fit
-  free RAM` means its edges are a bit softer than usual.
+  free RAM` means its edges are a bit softer than usual; `upscaled ×N from a
+  small original` means a shop photo was enlarged and may look soft: suggest a
+  bigger original.
 
 Do not claim success for images listed in `failed`. `processed` counts only
-outputs the engine verified (a readable RGBA file at the source's size; an
+outputs the engine verified (a readable file of the expected kind and size; an
 empty or unchanged cut-out is listed in `warnings`), so no extra check is
 needed for the report. A good report is 3-5 lines:
 
@@ -205,11 +227,11 @@ needed for the report. A good report is 3-5 lines:
 > Review: 35 fine; 2 had a green fringe on the hair and were redone with
 > `--clean-edges`, now fine.
 
-**Store and catalog photos.** Say what the output is: transparent, the same
-size as the original, not on white and not square-cropped, and contact
-shadows under the product are removed. Offer to help with white backgrounds,
-square crops or a soft shadow if their shop needs them; the engine does not
-do these.
+**Store and catalog photos.** Say what the output is. Transparent: the same
+size as the original; offer `--shop` (white, square, 2000 px JPEG) or a brand
+colour if their shop needs it. With `--shop`: ready to upload. Either way,
+contact shadows under the product are removed; the engine does not add a
+shadow.
 
 ## Options worth knowing
 
@@ -220,12 +242,17 @@ do these.
 | `--only FILE` | Redoing chosen images after a review (step 4), with `-o` to a temporary folder. Implies `--force` for them. |
 | `--model NAME` | The user names a model, or `references/models.md` says so for a special case. Default `auto`. |
 | `--format webp` | The user wants smaller files (still lossless). Default PNG. |
+| `--shop` | Photos for a shop or marketplace: `--background white --square --pad 7.5 --size 2000 --format jpg`; any of them can be overridden. |
+| `--background COLOUR` | `white`, `black` or `#RRGGBB` behind the product. Needed for `--format jpg`. The hex is painted in the photo's own colour profile: on wide-gamut (Display P3) photos a brand colour can look slightly off; white and black are exact. |
+| `--square` · `--pad PCT` · `--size PX` | Square canvas around the subject · margin on each side, % of the canvas · longest side in pixels. |
 | `--clean-edges` | A coloured halo from the old background shows on hair or fur (green screen, strong colours). Recolours semi-transparent edge pixels only. |
 | `--fast-edges` | Speed matters more than hair and fur detail. Never when the user asked for the best quality. |
 | `-o DIR` | The user wants the output somewhere specific. |
 
 The subject's pixels are copied bit for bit (except with `--clean-edges`, and
-only on edge pixels), and the output keeps the input's exact size. No model
+only on edge pixels), and the output keeps the input's exact size. Finishing
+is the opt-in exception: `--background` blends only the edge pixels, `--square`
+and `--pad` crop, `--size` resamples, and JPEG is lossy (quality 95). No model
 keeps clear glass see-through; warn the user if the photos are glassware on a
 coloured background.
 

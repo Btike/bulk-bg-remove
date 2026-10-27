@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, PngImagePlugin
 
 from .. import formats  # noqa: F401  (registers the HEIC/HEIF opener)
 from ..domain import OutputFormat
@@ -64,14 +64,59 @@ def save_rgba(
     """Write an RGBA image losslessly, preserving exact dimensions and ICC."""
     if image.mode != "RGBA":
         raise ValueError(f"expected RGBA image, got {image.mode}")
+    save_image(image, path, output_format, icc_profile=icc_profile)
 
-    params: dict[str, bytes] = {}
+
+# JPEG for shops: high quality, full-resolution colour (no 4:2:0 subsampling).
+JPEG_QUALITY = 95
+
+
+def save_image(
+    image: Image.Image,
+    path: Path,
+    output_format: OutputFormat,
+    *,
+    icc_profile: bytes | None = None,
+    tag: str | None = None,
+) -> None:
+    """Write an RGBA or (opaque background) RGB image. PNG and WebP are lossless.
+    `tag` is a short text stored in the file's metadata (see `read_tag`)."""
+    if image.mode not in ("RGBA", "RGB"):
+        raise ValueError(f"expected RGBA or RGB image, got {image.mode}")
+    if output_format is OutputFormat.JPG and image.mode != "RGB":
+        raise ValueError("JPEG has no transparency: use it with an opaque --background")
+
+    params: dict[str, object] = {}
     if icc_profile is not None:
         params["icc_profile"] = icc_profile
 
     if output_format is OutputFormat.WEBP:
+        if tag is not None:
+            params["xmp"] = tag.encode()
         # exact=True keeps RGB under fully transparent pixels (no cleanup), so
         # the save is bit-exact everywhere.
         image.save(path, format="WEBP", lossless=True, quality=100, method=6, exact=True, **params)
+    elif output_format is OutputFormat.JPG:
+        if tag is not None:
+            params["comment"] = tag
+        image.save(path, format="JPEG", quality=JPEG_QUALITY, subsampling=0, **params)
     else:
+        if tag is not None:
+            info = PngImagePlugin.PngInfo()
+            info.add_text(TAG_KEY, tag)
+            params["pnginfo"] = info
         image.save(path, format="PNG", compress_level=6, **params)
+
+
+TAG_KEY = "bulk-bg-remove"
+
+
+def read_tag(image: Image.Image) -> str | None:
+    """The `tag` that `save_image` stored, from an opened PNG, JPEG or WebP."""
+    for key in (TAG_KEY, "comment", "xmp"):
+        value = image.info.get(key)
+        if isinstance(value, bytes):
+            value = value.decode(errors="replace")
+        if isinstance(value, str) and value:
+            return value
+    return None

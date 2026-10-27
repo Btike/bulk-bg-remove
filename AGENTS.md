@@ -27,7 +27,8 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   private. Run the full script before every commit.
 
 ## Structure
-- `src/bulk_bg_remove/core/` — pure image logic: `io.py`, `matting.py`, `compositing.py`, `pipeline.py`.
+- `src/bulk_bg_remove/core/` — pure image logic: `io.py`, `matting.py`, `compositing.py`,
+  `finish.py` (opt-in shop finishing), `pipeline.py`.
   No CLI/UI/runner imports.
 - `src/bulk_bg_remove/engine/model.py` — rembg session wrapper (load once per worker, reuse).
 - `src/bulk_bg_remove/domain.py` — shared domain types.
@@ -46,6 +47,10 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   opt-in exception is `--clean-edges`, which recolours semi-transparent edge pixels only.
 - Output keeps the exact input dimensions. PNG is always lossless; WebP uses
   `lossless=True, exact=True`.
+- The other opt-in exception is finishing (`core/finish.py`: `--background`, `--square`,
+  `--pad`, `--size`, `--shop`): it blends edge pixels onto a colour, crops, resamples or
+  writes JPEG only when asked. Review sheets keep judging the transparent cut-out (a
+  preview saved before finishing), never the finished image.
 - Originals are never modified, moved or deleted. Output always goes to a new
   `<name>-no-bg/` folder.
 

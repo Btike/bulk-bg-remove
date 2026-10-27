@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from ..core.finish import NO_FINISH, Finish
 from ..core.matting import MATTING_MAX_GB, MATTING_MIN_GB, EdgeMode, fullres_matting_gb
 from ..domain import OutputFormat
 from .events import JSONObject
@@ -55,7 +56,11 @@ DEFAULT_MAX_WORKERS = 4
 OUTPUT_BYTES_PER_PIXEL: dict[OutputFormat, float] = {
     OutputFormat.PNG: 3.0,
     OutputFormat.WEBP: 2.2,
+    OutputFormat.JPG: 0.8,  # quality 95, no chroma subsampling
 }
+# Finishing (background, square, margin, size): the framed RGBA canvas, its
+# resized copy and the flattened RGB, per megapixel of canvas.
+FINISH_GB_PER_MEGAPIXEL = 0.012
 DISK_MARGIN = 1.2
 DISK_HEADROOM_GB = 0.2
 
@@ -89,6 +94,7 @@ class PlanSettings:
     workers: int | None = None  # explicit override
     max_workers: int = DEFAULT_MAX_WORKERS
     min_free_ram_gb: float | None = None  # explicit override of the floor
+    finish: Finish = NO_FINISH
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,13 +143,21 @@ def model_peak_gb(model: str) -> float:
     return MODEL_PEAK_GB.get(model, UNKNOWN_MODEL_PEAK_GB)
 
 
-def image_peak_gb(max_megapixels: float, edges: EdgeMode, *, full_matting: bool = False) -> float:
+def image_peak_gb(
+    max_megapixels: float,
+    edges: EdgeMode,
+    *,
+    full_matting: bool = False,
+    finish: Finish = NO_FINISH,
+) -> float:
     """RAM for one image on top of the model: buffers plus edge matting.
 
     The start floor counts matting at its minimum (it shrinks to fit); sizing
     extra parallel workers counts it at its maximum.
     """
     buffers = max(0.2, max_megapixels * IMAGE_GB_PER_MEGAPIXEL)
+    if finish.active:
+        buffers += max_megapixels * finish.canvas_growth * FINISH_GB_PER_MEGAPIXEL
     if edges is EdgeMode.MASK:
         return buffers
     solver = MATTING_MAX_GB if full_matting else MATTING_MIN_GB
@@ -178,10 +192,12 @@ def make_plan(
     blockers: list[str] = []
     warnings: list[str] = []
 
-    peak = image_peak_gb(inventory.max_megapixels, settings.edges)
+    peak = image_peak_gb(inventory.max_megapixels, settings.edges, finish=settings.finish)
     floor = settings.min_free_ram_gb or model_peak_gb(settings.model) + peak + RESERVE_RAM_GB
     # A worker with room for full-resolution matting: what each parallel worker needs.
-    full_peak = image_peak_gb(inventory.max_megapixels, settings.edges, full_matting=True)
+    full_peak = image_peak_gb(
+        inventory.max_megapixels, settings.edges, full_matting=True, finish=settings.finish
+    )
     per_worker = model_peak_gb(settings.model) + full_peak
 
     spare = hardware.ram_available_gb - (per_worker + RESERVE_RAM_GB)
@@ -214,7 +230,9 @@ def make_plan(
             f"{floor:.1f} GB this model needs — close some apps and retry"
         )
 
-    total_pixels = inventory.total_megapixels * 1e6
+    total_pixels = inventory.total_megapixels * 1e6 * settings.finish.canvas_growth
+    if settings.finish.size is not None:
+        total_pixels = images * settings.finish.size**2
     output_gb = total_pixels * OUTPUT_BYTES_PER_PIXEL[settings.output_format] / 1e9
     if free_disk_gb < output_gb * DISK_MARGIN + DISK_HEADROOM_GB:
         blockers.append(

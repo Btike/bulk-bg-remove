@@ -22,14 +22,14 @@ during the run. `error` or `interrupted` end the stream early.
 |---|---|
 | `scan` | `hardware` {`platform`, `cpu_name`, `cpu_logical`, `cpu_performance`, `ram_total_gb`, `ram_available_gb`, `device`} · `inventory` {`input`, `images`, `total_mb`, `max_megapixels`, `formats` {format: count}, `skipped` [{`path`, `reason`}]: files that are not supported images, hidden image files (`hidden file`) and earlier output folders (`earlier output folder (-no-bg)`)} · `output` |
 | `sample_sheet` | `path` (a PNG in a temporary folder), `images` [file names]: only with `--sample-sheet` |
-| `plan` | `images`, `mode` (`queue`/`parallel`), `workers`, `threads_per_worker`, `binding_limit` (`RAM`/`CPU`), `ram_per_worker_gb`, `min_free_ram_gb`, `pause_below_gb`, `estimated_output_gb`, `free_disk_gb`, `eta_seconds`, `blockers` [str], `warnings` [str], `model` (the model that will run), `model_choice` (null unless `--model auto`: {`profile`, `model`, `score`, `best_model`, `best_score`, `best_needs_gb`, `needs_gb`, `fits`, `gap`}, scores 0-10 from the bench), `edges` (`matte`/`clean`/`mask`), `already_done` |
+| `plan` | `images`, `mode` (`queue`/`parallel`), `workers`, `threads_per_worker`, `binding_limit` (`RAM`/`CPU`), `ram_per_worker_gb`, `min_free_ram_gb`, `pause_below_gb`, `estimated_output_gb`, `free_disk_gb`, `eta_seconds`, `blockers` [str], `warnings` [str], `model` (the model that will run), `model_choice` (null unless `--model auto`: {`profile`, `model`, `score`, `best_model`, `best_score`, `best_needs_gb`, `needs_gb`, `fits`, `gap`}, scores 0-10 from the bench), `edges` (`matte`/`clean`/`mask`), `output_format` (`png`/`webp`/`jpg`), `finish` (null, or {`background` (`#RRGGBB` or null), `square`, `pad` (% per side), `size` (px or null)} with `--shop`, `--background`, `--square`, `--pad` or `--size`), `already_done` |
 | `model_download` | `model` (first run only: weights are being downloaded) |
 | `model_ready` | `model` |
 | `worker_loading` / `worker_ready` | `worker`. They can repeat mid-run for the same `worker`: when free RAM runs low, a worker whose memory grew is restarted (~2 s). Normal, not a crash |
 | `worker_failed` | `worker`, `reason` |
 | `job_started` | `job`, `worker`, `source`, `destination` |
 | `job_stage` | `job`, `worker`, `stage`, `progress` (0–1) |
-| `job_done` | `job`, `worker`, `width`, `height`, `seconds`, `note` (null or a short remark: `edge matting skipped: …`, or `edge matting at N MP to fit free RAM`), `source`, `done`, `total` (images finished so far, done or failed, out of the run's total) |
+| `job_done` | `job`, `worker`, `width`, `height`, `seconds`, `note` (null or a short remark, `; `-separated: `edge matting skipped: …`, `edge matting at N MP to fit free RAM`, `upscaled ×N from a small original (N px)`, and with any finishing also `empty cut-out: no subject detected` or `nothing removed: background kept`, which verify cannot see on a finished output), `source`, `done`, `total` (images finished so far, done or failed, out of the run's total) |
 | `job_failed` | `job`, `worker`, `reason`, `source`, `done`, `total` |
 | `job_skipped` | `source`, `reason` (`already done`) |
 | `paused` | `free_ram_gb`, `needed_gb`: free RAM dropped below the reserve, new images wait (if nothing frees up, pending images fail with `not enough free RAM (pause timed out)`) |

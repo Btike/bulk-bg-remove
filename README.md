@@ -43,6 +43,9 @@ background from every photo in this folder"* and it:
 Output goes to a new `<name>-no-bg/` folder next to the input. Originals are never
 touched, and the subject's pixels are copied bit for bit: only the alpha channel is new.
 
+Selling online? `--shop` puts every product on white, square, 2000 px and ready to
+upload; `--background "#E6F6EA"` uses your brand colour instead.
+
 Reads JPG, PNG, HEIC, WebP, AVIF, TIFF and BMP (by content, not extension), follows
 EXIF rotation, and handles CMYK, 16-bit and 45 MP photos.
 
@@ -104,7 +107,10 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 |---|---|
 | `--profile uniform\|complex\|people\|scene\|drawing` | what the photos are; the model follows |
 | `--model NAME` | force a model instead of `auto` |
-| `--format webp` | smaller lossless files (PNG by default) |
+| `--format webp\|jpg` | smaller lossless files (PNG by default); JPEG only with a background |
+| `--shop` | ready for a shop: white, square, product filling ~85%, 2000 px, JPEG |
+| `--background white\|#RRGGBB` | a solid colour behind the subject |
+| `--square` · `--pad PCT` · `--size PX` | square canvas · margin around the subject · longest side |
 | `--clean-edges` | remove the old background's colour halo from hair and fur edges |
 | `--fast-edges` | skip edge matting: faster, coarser hair |
 | `--review-sheets` | sheets and close-ups for reviewing the cut-outs |

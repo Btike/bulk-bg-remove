@@ -6,10 +6,13 @@ first two phases (nothing is written yet), `execute()` the last two.
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
+from ..core.finish import Finish
 from ..core.matting import MATTING_MAX_GB, EdgeMode
 from ..domain import OutputFormat
 from ..engine.model import DEFAULT_MODEL, downloaded_model_path, ensure_model
@@ -50,6 +53,11 @@ class BulkOptions:
     allow_fallback: bool = False  # let "auto" take a clearly weaker model that fits
     only: tuple[str, ...] = ()  # redo just these (paths relative to the input, or names)
     review_sheets: bool = False  # after the run, write sheets for a visual review
+    finish: Finish = Finish()  # background, square, margin, size for shops (default: none)
+
+    def __post_init__(self) -> None:
+        if self.output_format is OutputFormat.JPG and not self.finish.opaque:
+            raise ValueError("--format jpg needs --background: JPEG has no transparency")
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +145,8 @@ class BulkSession:
         if self._options.force or self._options.only:
             todo, done = targets, []
         else:
-            todo = [t for t in targets if not is_complete(t.destination, by_path[t.source])]
+            finish = self._options.finish
+            todo = [t for t in targets if not is_complete(t.destination, by_path[t.source], finish)]
             done = [t for t in targets if t not in todo]
         self._targets, self._done_already = todo, done
 
@@ -162,7 +171,9 @@ class BulkSession:
             workers=self._options.workers,
             max_workers=self._options.max_workers,
             min_free_ram_gb=self._options.min_free_ram_gb,
+            finish=self._options.finish,
         )
+        finish = self._options.finish
         plan = make_plan(hardware, remaining, free_disk_gb(self.output_root), settings)
         choice = self.model_choice
         if (
@@ -191,6 +202,17 @@ class BulkSession:
                     "model": self.model,
                     "model_choice": choice.to_dict() if choice else None,
                     "edges": self._options.edges.value,
+                    "output_format": self._options.output_format.value,
+                    "finish": (
+                        {
+                            "background": finish.background_hex,
+                            "square": finish.square,
+                            "pad": finish.pad,
+                            "size": finish.size,
+                        }
+                        if finish.active
+                        else None
+                    ),
                     "already_done": len(done),
                 },
             )
@@ -215,7 +237,17 @@ class BulkSession:
 
         if self._targets and not self._cancelled:
             self._ensure_model()
-        jobs = [Job(i, t.source, t.destination) for i, t in enumerate(self._targets)]
+        # Review sheets judge the transparent cut-out, not the finished image: a
+        # leftover of a white background is invisible on a white --background.
+        previews = (
+            Path(tempfile.mkdtemp(prefix="bulk-bg-remove-cutouts-"))
+            if self._options.review_sheets and self._targets
+            else None
+        )
+        jobs = [
+            Job(i, t.source, t.destination, previews / f"{i}.png" if previews else None)
+            for i, t in enumerate(self._targets)
+        ]
         outcomes = []
         if jobs and not self._cancelled:
             self._runner = Runner(
@@ -229,6 +261,7 @@ class BulkSession:
                     pause_below_gb=self.plan.pause_below_gb,
                     pause_timeout_s=self._options.pause_timeout_s,
                     model_factory=self._options.model_factory,
+                    finish=self._options.finish,
                     recycle_above_gb=model_peak_gb(self.model) + RECYCLE_MARGIN_GB,
                     recycle_when_free_below_gb=RESERVE_RAM_GB + MATTING_MAX_GB + RECYCLE_MARGIN_GB,
                 ),
@@ -245,7 +278,7 @@ class BulkSession:
             if not outcome.ok:
                 failed.append((str(outcome.job.source), outcome.reason or "failed"))
                 continue
-            check = verify_output(outcome.job.destination, source)
+            check = verify_output(outcome.job.destination, source, self._options.finish)
             if not check.ok:
                 failed.append((str(outcome.job.source), check.problem or "verification failed"))
             else:
@@ -257,18 +290,20 @@ class BulkSession:
 
         if self._options.review_sheets:
             verified = {Path(path) for path, _ in failed}
-            done_pairs = [
-                (o.job.source, o.job.destination)
+            done = [
+                (o.job.source, o.job.destination, _cutout(o.job))
                 for o in outcomes
                 if o.ok and o.job.source not in verified
             ]
-            if done_pairs:
+            if done:
                 try:
-                    sheets = write_review_sheets(done_pairs, self.output_root)
+                    sheets = write_review_sheets(done, self.output_root)
                 except OSError as exc:
                     warnings.append(("", f"review sheets could not be written: {exc}"))
                 else:
                     self._emit_review_sheets(sheets)
+            if previews is not None:
+                shutil.rmtree(previews, ignore_errors=True)
 
         report = Report(
             output_root=self.output_root,
@@ -319,6 +354,11 @@ class BulkSession:
             except Exception as exc:  # network, disk, or a missing optional runtime
                 raise ModelUnavailable(f"model {model} is not available: {exc}") from exc
             self._emit(Event("model_ready", {"model": model}))
+
+
+def _cutout(job: Job) -> Path:
+    """The transparent cut-out to review: the preview if the worker kept one."""
+    return job.preview if job.preview is not None and job.preview.is_file() else job.destination
 
 
 def _select(targets: list[OutputTarget], root: Path, only: tuple[str, ...]) -> list[OutputTarget]:

@@ -160,3 +160,18 @@ def test_open_folder_uses_the_file_manager(client: TestClient, opened: list[Path
     run_to_end(client, created["job"])
     assert client.post(f"/api/jobs/{created['job']}/open").status_code == 200
     assert opened == [Path(created["output"])]
+
+
+def test_jpg_is_refused_before_anything_is_staged(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import tempfile
+
+    made: list[str] = []
+    real = tempfile.mkdtemp
+    monkeypatch.setattr(tempfile, "mkdtemp", lambda **kw: made.append("x") or real(**kw))
+    files = [("files", ("a.jpg", jpeg(), "image/jpeg"))]
+    data = {"paths": ["a.jpg"], "kind": "files", "output_format": "jpg"}
+    response = client.post("/api/jobs/upload", files=files, data=data)
+    assert response.status_code == 400 and "background" in response.text
+    assert made == []

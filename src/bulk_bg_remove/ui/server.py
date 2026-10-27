@@ -45,6 +45,8 @@ from ..paths import OUTPUT_SUFFIX
 
 UI_MODELS = ("birefnet-general-lite", "birefnet-general", "isnet-general-use")
 PREVIEW_MAX_SIDE = 900
+# The page has no background option yet, and JPEG has no transparency.
+JPG_IN_UI = "JPG needs a background colour: use PNG or WebP here"
 
 
 class RunOptions(BaseModel):
@@ -166,6 +168,8 @@ def create_app(
     def create_job(
         name: str, input_path: Path, output: Path, options: RunOptions, staging: Path | None
     ) -> JSONObject:
+        if options.output_format is OutputFormat.JPG:
+            raise HTTPException(400, JPG_IN_UI)
         with lock:
             if active_job() is not None:
                 raise HTTPException(409, "a run is already in progress — wait or stop it first")
@@ -252,6 +256,8 @@ def create_app(
     ) -> JSONObject:
         if not files or len(files) != len(paths):
             raise HTTPException(400, "files and paths must match")
+        if output_format is OutputFormat.JPG:
+            raise HTTPException(400, JPG_IN_UI)
         relatives = [_safe_relative(p) for p in paths]
         staging = Path(tempfile.mkdtemp(prefix="bulk-bg-remove-ui-"))
         stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
