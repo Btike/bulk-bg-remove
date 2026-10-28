@@ -1,0 +1,95 @@
+name: Bad cut-out
+description: The engine ran, but the background removal itself came out wrong.
+title: "[cut-out] "
+labels: [cut-out, needs-triage]
+assignees: [Btike]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bad cut-outs are how models get picked and the checks get tuned, so these reports matter.
+
+        **Only attach photos you may share publicly.** A crop around the problem is enough.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the [open and closed cut-out reports](https://github.com/Btike/bulk-bg-remove/issues?q=is%3Aissue%20label%3Acut-out) and this is not one of them.
+          required: true
+        - label: I am on the [latest release](https://pypi.org/project/bulk-bg-remove/) (`bulk-bg-remove --version`).
+          required: true
+        - label: I may share these images publicly.
+          required: true
+  - type: textarea
+    id: images
+    attributes:
+      label: Original and cut-out
+      description: |
+        Drag in the original and the result. The review sheet or its close-up (on black and on white) is even better: most viewers hide transparency, and the problem may not show on a plain PNG.
+    validations:
+      required: true
+  - type: dropdown
+    id: subject
+    attributes:
+      label: What the photo shows
+      options:
+        - A product or object on a plain background
+        - A person (hair)
+        - An animal (fur)
+        - A plant
+        - Glass or something transparent
+        - Fine detail (wires, mesh, spokes)
+        - A drawing, logo or illustration
+        - A busy scene
+    validations:
+      required: true
+  - type: dropdown
+    id: problem
+    attributes:
+      label: What is wrong
+      multiple: true
+      options:
+        - Part of the subject is missing
+        - Background left around the subject
+        - Background kept inside the subject (a hole, a handle, a gap)
+        - Halo or fringe on the edge
+        - Hair, fur or plant edges lost or blocky
+        - Glass or transparent parts wrong
+        - Certified (skipped review), but it was not clean
+        - Passed the agent's review, but it was not clean
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Plan lines from the run
+      description: The dim lines under `[2/4 PLAN]`, or the command and flags if you do not have them.
+      placeholder: |
+        model birefnet-general-lite · edges matte · needs 12.5 GB free RAM
+        finish: background #FFFFFF · square · 7.5% margin · 2000 px · jpg
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`bulk-bg-remove --version`"
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: textarea
+    id: second-pass
+    attributes:
+      label: Did a second pass help?
+      description: Another `--profile`, `--clean-edges`, or another `--model`. Say what you tried and what changed.
+      placeholder: "--profile complex picked birefnet-general: the hair is better, the halo is still there."
+  - type: checkboxes
+    id: benchmark
+    attributes:
+      label: Public benchmark (optional)
+      description: Hard cases may join the [benchmark](https://github.com/Btike/bulk-bg-remove/blob/main/BENCHMARK.md) that every model change is measured against. Each image is listed with its author and licence.
+      options:
+        - label: I took this photo, and it may be added to the public benchmark under CC BY 4.0 with my GitHub name as the author.

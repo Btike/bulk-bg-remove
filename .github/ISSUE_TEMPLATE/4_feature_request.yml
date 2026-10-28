@@ -1,0 +1,52 @@
+name: Feature request
+description: Something the engine, the skill or the UI should do.
+title: "[feature] "
+labels: [enhancement, needs-triage]
+assignees: [Btike]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A kind of photo that comes out badly is a **Bad cut-out**, not a feature request: it gets fixed by measuring, not by a new flag.
+
+        The engine keeps a few promises a feature has to keep too: it never changes the subject's pixels unless asked, never touches the originals and never uploads anything.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the [open and closed feature requests](https://github.com/Btike/bulk-bg-remove/issues?q=is%3Aissue%20label%3Aenhancement) and the [options](https://github.com/Btike/bulk-bg-remove#options), and this is not there.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shop or marketplace output (size, background, margin, format)
+        - Input or output format
+        - Support for another agent
+        - Speed or RAM
+        - Local UI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The job and where the photos end up, before any solution.
+      placeholder: "My store's theme shows 4:3 landscape photos. --square gives me squares, so I crop each one by hand."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: A flag, a preset, a change in what the agent does, or anything else.
+      placeholder: "An --aspect 4:3 option that works like --square."
+  - type: input
+    id: volume
+    attributes:
+      label: How many photos, how often
+      description: Helps weigh speed and RAM against quality.
+      placeholder: "About 300 a month, in batches of 50."
