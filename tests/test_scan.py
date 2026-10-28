@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from bulk_bg_remove.bulk.scan import discover
 from conftest import MakeImage
@@ -41,6 +42,9 @@ def _cgroup(tmp_path, monkeypatch, files: dict[str, str]):
         (tmp_path / rel).write_text(text)
     monkeypatch.setattr(scan_module, "CGROUP_ROOT", tmp_path)
     monkeypatch.setattr(scan_module.sys, "platform", "linux")
+    # A roomy host, so the container limit is what caps (CI runners can be small).
+    host = SimpleNamespace(total=64 * 10**9, available=60 * 10**9)
+    monkeypatch.setattr(scan_module.psutil, "virtual_memory", lambda: host)
     return scan_module
 
 
@@ -75,9 +79,7 @@ def test_cgroup_v1_and_no_limit(tmp_path, monkeypatch) -> None:
     assert scan_module._memory() == (8.0, 6.0)
     (tmp_path / "memory.max").write_text("max\n")  # v2 without a limit wins over v1 files
     (tmp_path / "memory" / "memory.limit_in_bytes").write_text(str(2**62))
-    import psutil
-
-    assert scan_module._memory()[0] == psutil.virtual_memory().total / scan_module.GB
+    assert scan_module._memory() == (64.0, 60.0)  # no limit: the host's own RAM
 
 
 def test_a_nested_cgroup_v2_limit_is_found(tmp_path, monkeypatch) -> None:
