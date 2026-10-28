@@ -3,3 +3,6 @@ contact_links:
   - name: Troubleshooting guide
     url: https://github.com/Btike/bulk-bg-remove/blob/main/skills/bulk-bg-remove/references/troubleshooting.md
     about: Install, model download, RAM, crashes, image formats and edges. Most problems are answered here.
+  - name: Report a security vulnerability
+    url: https://github.com/Btike/bulk-bg-remove/security/advisories/new
+    about: Privately, never in a public issue. See SECURITY.md.

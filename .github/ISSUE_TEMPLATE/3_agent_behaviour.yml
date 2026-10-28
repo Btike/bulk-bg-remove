@@ -1,12 +1,26 @@
 name: Agent / skill behaviour
-description: The agent ran the skill the wrong way, even though the engine worked.
-labels: [skill]
+description: The engine worked, but the agent ran the skill the wrong way.
+title: "[skill] "
+labels: [skill, needs-triage]
+assignees: [Btike]
 body:
   - type: markdown
     attributes:
       value: |
         For when the cut-outs are fine but the agent was not: it asked what it should have decided, decided what it should have asked, picked the wrong flags, skipped the review or misreported.
-        The steps it should follow are in [SKILL.md](https://github.com/Btike/bulk-bg-remove/blob/main/skills/bulk-bg-remove/SKILL.md).
+
+        What the agent should do is in [SKILL.md](https://github.com/Btike/bulk-bg-remove/blob/main/skills/bulk-bg-remove/SKILL.md). Agents differ, so the agent and its model matter as much as the steps.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the [open and closed skill reports](https://github.com/Btike/bulk-bg-remove/issues?q=is%3Aissue%20label%3Askill) and this is not one of them.
+          required: true
+        - label: The skill is up to date (reinstalled or updated the plugin, and `uv tool upgrade bulk-bg-remove`).
+          required: true
+        - label: The conversation excerpt below has no private file paths, names or keys.
+          required: true
   - type: dropdown
     id: agent
     attributes:
@@ -17,14 +31,14 @@ body:
         - Cursor
         - Gemini CLI
         - Conductor
-        - Other (say which below)
+        - Other (say which in the version field)
     validations:
       required: true
   - type: input
     id: agent-version
     attributes:
       label: Agent version and model
-      placeholder: "Claude Code 2.x, Sonnet"
+      placeholder: "Claude Code 2.x with Sonnet"
     validations:
       required: true
   - type: dropdown
@@ -50,6 +64,7 @@ body:
         - Decided something it should have asked (for example a weaker model, a RAM blocker)
         - Wrong profile or flags
         - Skipped the review, or misread the review sheets
+        - Replaced a cut-out with a worse one
         - The report back was wrong or missing
         - Other
     validations:
@@ -58,6 +73,7 @@ body:
     id: request
     attributes:
       label: What you asked
+      description: Your exact words.
       placeholder: "remove the backgrounds in ~/Desktop/products, they're for my Shopify store"
     validations:
       required: true
@@ -65,7 +81,11 @@ body:
     id: transcript
     attributes:
       label: What the agent did
-      description: The relevant part of the conversation, commands included. Remove anything private.
+      description: The relevant part of the conversation, with the commands it ran.
+      placeholder: |
+        > Ran: bulk-bg-remove ~/Desktop/products --dry-run --sample-sheet --json
+        > Agent: These look like products. Do you want a white background, a square crop and JPEG?
+        (It should not ask: SKILL.md says a shop request means --shop.)
       render: text
     validations:
       required: true
@@ -74,9 +94,12 @@ body:
     attributes:
       label: What it should have done
       description: If you can, name the SKILL.md step it missed.
+      placeholder: "Step 2: a shop request runs --shop without asking."
   - type: input
     id: version
     attributes:
       label: Engine version
       description: "`bulk-bg-remove --version`"
       placeholder: "0.1.1"
+    validations:
+      required: true

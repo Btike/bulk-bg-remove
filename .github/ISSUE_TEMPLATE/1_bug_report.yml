@@ -1,0 +1,131 @@
+name: Bug report
+description: The engine failed, crashed, stopped or did the wrong thing.
+title: "[bug] "
+labels: [bug, needs-triage]
+assignees: [Btike]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most problems (install, model download, RAM, crashes, formats) are answered in the [troubleshooting guide](https://github.com/Btike/bulk-bg-remove/blob/main/skills/bulk-bg-remove/references/troubleshooting.md).
+
+        Other forms: a cut-out that came out wrong is a **Bad cut-out**; an agent that ran the skill the wrong way is **Agent / skill behaviour**.
+
+        If your agent drafted this report, read it before you send it: it should describe what you saw, not guess at causes.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the [open and closed bug reports](https://github.com/Btike/bulk-bg-remove/issues?q=is%3Aissue%20label%3Abug) and this is not one of them.
+          required: true
+        - label: I am on the [latest release](https://pypi.org/project/bulk-bg-remove/) (`uv tool upgrade bulk-bg-remove`, then `bulk-bg-remove --version`).
+          required: true
+        - label: This report has no private photos, file paths, names or keys.
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected
+      placeholder: |
+        I expected 240 cut-outs in products-no-bg/. 239 came out, one photo failed with "killed by the system", although doctor said READY.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or request
+      description: The exact command, or what you asked your agent to do.
+      placeholder: bulk-bg-remove ~/Desktop/products --shop --yes
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or error
+      description: The last lines of the output. With `--json`, the `failed` part of the last (`finished`) event is enough.
+      placeholder: |
+        STAGE CLEAR · 239 done · 1 failed · 0 already done · 6m 41s
+        ✗ IMG_0412.HEIC: worker process was killed by the system (out of memory?)
+        output → ~/Desktop/products-no-bg
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of bulk-bg-remove doctor
+      description: Plain `bulk-bg-remove doctor`. Not `--json`, which includes your home folder path.
+      placeholder: |
+        bulk-bg-remove 0.1.1 · Python 3.12.7
+          machine   Apple M2 · 4 perf cores · 24.0 GB RAM (13.8 GB free) · cpu
+          ✓ HEIC/HEIF input
+          ✓ AVIF input
+          ✓ WebP input/output
+          ✓ model birefnet-general-lite
+          ✓ free RAM ≥ 12.1 GB (12 MP photos)
+        READY
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Does it happen again?
+      options:
+        - Every time
+        - Sometimes
+        - Only once so far
+    validations:
+      required: true
+  - type: dropdown
+    id: single-image
+    attributes:
+      label: With a single image?
+      description: Run the same command on just one of the failing images.
+      options:
+        - It also fails with one image
+        - It works with one image, fails with the folder
+        - Not tried
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Linux
+        - Linux in Docker or another container
+        - Windows
+    validations:
+      required: true
+  - type: dropdown
+    id: entry
+    attributes:
+      label: How you ran it
+      options:
+        - Through an agent (Claude Code, Codex, other)
+        - Command line
+        - Local UI in the browser
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How the engine was installed
+      options:
+        - By the agent skill (uv tool install)
+        - uv tool install
+        - uvx
+        - pip
+        - From a clone (uv sync)
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: What you already tried, or anything unusual about the photos (very large, 16-bit, from a scanner…).
