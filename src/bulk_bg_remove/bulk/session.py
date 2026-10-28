@@ -33,6 +33,10 @@ from .sample import ReviewSheet, write_review_sheets
 from .scan import ImageSource, Inventory, discover, free_disk_gb, probe_hardware
 from .verify import is_complete, verify_output
 
+# Of the certified cut-outs (sorted by path), every AUDIT_EVERY-th still goes on the
+# review sheets, marked as an audit: a spot check that the certification holds.
+AUDIT_EVERY = 20
+
 
 class ModelUnavailable(RuntimeError):
     """The model's weights could not be downloaded or its runtime is missing."""
@@ -53,6 +57,7 @@ class BulkOptions:
     allow_fallback: bool = False  # let "auto" take a clearly weaker model that fits
     only: tuple[str, ...] = ()  # redo just these (paths relative to the input, or names)
     review_sheets: bool = False  # after the run, write sheets for a visual review
+    review_all: bool = False  # with review_sheets: also sheet the certified cut-outs
     finish: Finish = Finish()  # background, square, margin, size for shops (default: none)
 
     def __post_init__(self) -> None:
@@ -70,6 +75,7 @@ class Report:
     not_processed: tuple[tuple[str, str], ...]
     warnings: tuple[tuple[str, str], ...]
     seconds: float
+    certified: int | None = None  # cut-outs that passed the chroma-key check (None: not run)
 
     @property
     def exit_code(self) -> int:
@@ -85,6 +91,7 @@ class Report:
             "not_processed": [{"path": p, "reason": r} for p, r in self.not_processed],
             "warnings": [{"path": p, "warning": w} for p, w in self.warnings],
             "seconds": round(self.seconds, 1),
+            "certified": self.certified,
         }
 
 
@@ -262,6 +269,7 @@ class BulkSession:
                     pause_timeout_s=self._options.pause_timeout_s,
                     model_factory=self._options.model_factory,
                     finish=self._options.finish,
+                    certify=self._certifies,
                     recycle_above_gb=model_peak_gb(self.model) + RECYCLE_MARGIN_GB,
                     recycle_when_free_below_gb=RESERVE_RAM_GB + MATTING_MAX_GB + RECYCLE_MARGIN_GB,
                 ),
@@ -288,20 +296,25 @@ class BulkSession:
                 if outcome.note:
                     warnings.append((str(outcome.job.destination), outcome.note))
 
+        certified_count: int | None = None
         if self._options.review_sheets:
             verified = {Path(path) for path, _ in failed}
-            done = [
-                (o.job.source, o.job.destination, _cutout(o.job))
-                for o in outcomes
-                if o.ok and o.job.source not in verified
+            ok = [o for o in outcomes if o.ok and o.job.source not in verified]
+            certified = sorted((o for o in ok if o.certified), key=lambda o: str(o.job.source))
+            certified_count = len(certified) if self._certifies else None
+            audit = {o.job.id for o in certified[::AUDIT_EVERY]}
+            entries = [
+                (o.job.source, o.job.destination, _cutout(o.job), o.job.id in audit)
+                for o in ok
+                if not o.certified or o.job.id in audit
             ]
-            if done:
+            if entries:
                 try:
-                    sheets = write_review_sheets(done, self.output_root)
+                    sheets = write_review_sheets(entries, self.output_root)
                 except OSError as exc:
                     warnings.append(("", f"review sheets could not be written: {exc}"))
                 else:
-                    self._emit_review_sheets(sheets)
+                    self._emit_review_sheets(sheets, len(certified), len(audit))
             if previews is not None:
                 shutil.rmtree(previews, ignore_errors=True)
 
@@ -314,11 +327,18 @@ class BulkSession:
             not_processed=tuple((str(s.path), s.reason) for s in self.inventory.skipped),
             warnings=tuple(warnings),
             seconds=time.monotonic() - started,
+            certified=certified_count,
         )
         self._emit(Event("finished", report.to_dict()))
         return report
 
-    def _emit_review_sheets(self, sheets: list[ReviewSheet]) -> None:
+    @property
+    def _certifies(self) -> bool:
+        """Certification only saves work when a review follows, and --review-all
+        asks to review everything anyway."""
+        return self._options.review_sheets and not self._options.review_all
+
+    def _emit_review_sheets(self, sheets: list[ReviewSheet], certified: int, audit: int) -> None:
         self._emit(
             Event(
                 "review_sheets",
@@ -333,12 +353,15 @@ class BulkSession:
                                     "source": str(e.source),
                                     "output": str(e.output),
                                     "zoom": str(e.zoom) if e.zoom else None,
+                                    "audit": e.audit,
                                 }
                                 for e in sheet.entries
                             ],
                         }
                         for sheet in sheets
-                    ]
+                    ],
+                    "certified": certified,
+                    "audit": audit,
                 },
             )
         )

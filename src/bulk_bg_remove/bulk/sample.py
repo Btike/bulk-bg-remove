@@ -78,6 +78,7 @@ class ReviewEntry:
     source: Path
     output: Path
     zoom: Path | None  # close-up on black and on white (None if it could not be made)
+    audit: bool = False  # certified, sheeted only as a spot check
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,11 +129,12 @@ def _label(output: Path, output_root: Path) -> str:
 
 
 def write_review_sheets(
-    pairs: Sequence[tuple[Path, Path, Path]], output_root: Path
+    pairs: Sequence[tuple[Path, Path, Path, bool]], output_root: Path
 ) -> list[ReviewSheet]:
-    """Sheets of up to 12 (source, output, cut-out) entries: original | on black |
-    on white. The cut-out is the transparent result before any finishing (often
-    the output itself); entries are labelled by the output's path."""
+    """Sheets of up to 12 (source, output, cut-out, audit) entries: original | on
+    black | on white. The cut-out is the transparent result before any finishing
+    (often the output itself); entries are labelled by the output's path, and
+    audit entries (certified, sheeted as a spot check) say AUDIT."""
     folder = Path(tempfile.mkdtemp(prefix="bulk-bg-remove-review-"))
     entry_w = 3 * REVIEW_TILE + 16
     entry_h = REVIEW_TILE + LABEL_HEIGHT + 6
@@ -143,11 +145,12 @@ def write_review_sheets(
         sheet = Image.new("RGB", (REVIEW_PER_ROW * entry_w, rows * entry_h), (128, 128, 128))
         draw = ImageDraw.Draw(sheet)
         entries = []
-        for index, (source, output, cutout) in enumerate(chunk):
+        for index, (source, output, cutout, audit) in enumerate(chunk):
             number = start + index + 1
             label = _label(output, output_root)
             x, y = (index % REVIEW_PER_ROW) * entry_w, (index // REVIEW_PER_ROW) * entry_h
-            draw.text((x + 4, y + 3), f"#{number}  {label[-70:]}", fill="white")
+            tag = "  AUDIT" if audit else ""
+            draw.text((x + 4, y + 3), f"#{number}{tag}  {label[-62:]}", fill="white")
             zoom: Path | None = None
             try:
                 tiles = _review_tiles(source, cutout)
@@ -158,7 +161,7 @@ def write_review_sheets(
                 tiles = []
             for column, tile in enumerate(tiles):
                 sheet.paste(tile, (x + column * (REVIEW_TILE + 4), y + LABEL_HEIGHT))
-            entries.append(ReviewEntry(number, label, source, output, zoom))
+            entries.append(ReviewEntry(number, label, source, output, zoom, audit))
         path = folder / f"review-{start // REVIEW_PER_SHEET + 1}.png"
         sheet.save(path)
         sheets.append(ReviewSheet(path, tuple(entries)))

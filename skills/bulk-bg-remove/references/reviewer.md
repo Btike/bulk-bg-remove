@@ -19,6 +19,10 @@ fur, feathers, plants or thin parts, open its close-up (the `zoom` for that
 `n` in the `review_sheets` event: the cut-out at up to 800 px, on black and on
 white) before calling it fine.
 
+An entry labelled `AUDIT` passed the engine's own chroma-key check and is on
+the sheet as a spot check. Judge it exactly like the others; if it needs a fix,
+say so plainly: it means the check missed something on these photos.
+
 Never judge from the output PNG itself: most viewers, agent file readers
 included, ignore transparency and show the original background, because the
 engine keeps the colour of transparent pixels untouched.

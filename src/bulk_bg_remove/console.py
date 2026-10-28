@@ -178,6 +178,13 @@ class TerminalReporter:
             self.line(f"[bold red]✗ {_str(blocker)}[/]")
 
     def _on_review_sheets(self, data: JSONObject) -> None:
+        certified = int(_num(data.get("certified"), 0))
+        if certified:
+            audit = int(_num(data.get("audit"), 0))
+            self.line(
+                f"[dim]{certified} certified by the chroma-key check (no review needed; "
+                f"{audit} kept on the sheets as an audit)[/]"
+            )
         sheets = data.get("sheets")
         for sheet in sheets if isinstance(sheets, list) else []:
             if isinstance(sheet, dict):

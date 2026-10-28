@@ -134,3 +134,52 @@ def test_output_inside_the_input_must_be_named_like_an_output(
         tmp_path / "in", OPTIONS, lambda e: None, output_root=tmp_path / "in" / "retry-no-bg"
     )
     assert fine.prepare().ok
+
+
+def product_shot(path: Path, background: tuple[int, int, int] = (250, 250, 250)) -> None:
+    """A subject exactly where the fake model looks (the centred half) on a backdrop.
+    Odd sides keep that rectangle symmetric, so the mirror check agrees."""
+    from PIL import ImageDraw
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.new("RGB", (161, 121), background)
+    ImageDraw.Draw(image).rectangle((40, 30, 120, 90), fill=(60, 140, 40))
+    image.save(path)
+
+
+def test_certified_cut_outs_skip_review_but_for_an_audit(tmp_path: Path) -> None:
+    for i in range(3):
+        product_shot(tmp_path / "in" / f"bottle-{i}.png")
+    make_busy = Image.effect_noise((161, 121), 90).convert("RGB")
+    make_busy.save(tmp_path / "in" / "scene.png")
+    events = run_session(tmp_path / "in", replace(OPTIONS, review_sheets=True))
+    done = {Path(e.data["source"]).name: e.data for e in events if e.type == "job_done"}
+    assert all(done[f"bottle-{i}.png"]["certified"] for i in range(3))
+    assert done["scene.png"]["certified"] is False
+    sheets = next(e for e in events if e.type == "review_sheets").data
+    images = [img for sheet in sheets["sheets"] for img in sheet["images"]]  # type: ignore[index]
+    assert sheets["certified"] == 3 and sheets["audit"] == 1
+    assert sorted((img["label"], img["audit"]) for img in images) == [  # type: ignore[index]
+        ("bottle-0.png", True),
+        ("scene.png", False),
+    ]
+    assert next(e for e in events if e.type == "finished").data["certified"] == 3
+
+
+def test_review_all_sheets_every_cut_out(tmp_path: Path) -> None:
+    for i in range(3):
+        product_shot(tmp_path / "in" / f"bottle-{i}.png")
+    events = run_session(tmp_path / "in", replace(OPTIONS, review_sheets=True, review_all=True))
+    sheets = next(e for e in events if e.type == "review_sheets").data
+    assert len(sheets["sheets"][0]["images"]) == 3  # type: ignore[index]
+    assert all(e.data["certified"] is None for e in events if e.type == "job_done")
+
+
+def test_audits_are_every_twentieth_certified_cut_out_by_path(tmp_path: Path) -> None:
+    for i in range(41):
+        product_shot(tmp_path / "in" / f"bottle-{i:02d}.png")
+    events = run_session(tmp_path / "in", replace(OPTIONS, review_sheets=True))
+    sheets = next(e for e in events if e.type == "review_sheets").data
+    labels = [img["label"] for sheet in sheets["sheets"] for img in sheet["images"]]  # type: ignore[index]
+    assert sheets["certified"] == 41 and sheets["audit"] == 3
+    assert labels == ["bottle-00.png", "bottle-20.png", "bottle-40.png"]

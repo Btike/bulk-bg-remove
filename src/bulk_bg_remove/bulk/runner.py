@@ -64,6 +64,7 @@ class RunSettings:
     pause_timeout_s: float = 600.0
     model_factory: str = DEFAULT_FACTORY
     finish: Finish = Finish()  # background, square, margin, size (default: none)
+    certify: bool = False  # run the chroma-key certification on every cut-out
     # Restart a worker whose memory grew past this after an image (None: never).
     # Images of different sizes fragment the heap, so a long-lived worker's RSS
     # creeps up to ~3x a single image's peak; a fresh process starts clean.
@@ -82,11 +83,14 @@ class JobOutcome:
     height: int | None = None
     reason: str | None = None
     note: str | None = None
+    certified: bool | None = None  # None: not checked
+    check: str | None = None  # why it is certified or needs review
 
 
 # Messages from workers are plain tuples so they pickle cheaply:
 #   ("ready", worker) | ("init_failed", worker, reason) | ("stage", worker, job_id, stage)
-#   ("done", worker, job_id, width, height, seconds, note)
+#   ("done", worker, job_id, width, height, seconds, note, certified, check, retire)
+#     certified: 1 certified, 0 needs review, -1 not checked; check: the reason
 #   ("failed", worker, job_id, reason, seconds)
 WorkerMessage = tuple[str | int | float, ...]
 
@@ -187,6 +191,7 @@ def worker_main(
                 matting_budget_gb=_matting_budget_gb,
                 finish=settings.finish,
                 cutout_preview=Path(preview) if preview else None,
+                check=settings.certify,
             )
             os.replace(temp, final)
         except Exception as exc:  # noqa: BLE001 — one bad file must not stop the batch
@@ -199,8 +204,22 @@ def worker_main(
             elapsed = time.monotonic() - started
             note = result.note or ""
             retire = _should_retire(settings)
+            cert = result.certification
+            certified = -1 if cert is None else int(cert.certified)
+            check = "" if cert is None else cert.reason
             messages.put(
-                ("done", worker, job_id, result.width, result.height, elapsed, note, retire)
+                (
+                    "done",
+                    worker,
+                    job_id,
+                    result.width,
+                    result.height,
+                    elapsed,
+                    note,
+                    certified,
+                    check,
+                    retire,
+                )
             )
         if retire:
             return  # the runner starts a fresh process for this worker slot
@@ -419,7 +438,11 @@ class Runner:
             if kind == "done":
                 width, height, seconds = int(message[3]), int(message[4]), float(message[5])
                 note = str(message[6]) or None
-                outcomes[job.id] = JobOutcome(job, True, seconds, width, height, note=note)
+                certified = None if int(message[7]) < 0 else bool(int(message[7]))
+                check = str(message[8]) or None
+                outcomes[job.id] = JobOutcome(
+                    job, True, seconds, width, height, note=note, certified=certified, check=check
+                )
                 self._finished(
                     "job_done",
                     job,
@@ -430,6 +453,8 @@ class Runner:
                         "height": height,
                         "seconds": round(seconds, 2),
                         "note": note,
+                        "certified": certified,
+                        "check": check,
                     },
                 )
             else:

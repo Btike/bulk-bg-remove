@@ -36,8 +36,9 @@ background from every photo in this folder"* and it:
 2. checks your machine (free RAM, formats) and plans the run,
 3. looks at a sample, picks the best model that fits your free RAM (BiRefNet when there is
    room), and cuts out every image in a queue or in parallel depending on RAM and CPU,
-4. has a second agent, with fresh eyes, review every cut-out on black and on white,
-   redo the bad ones with a better setting and keep whichever version is better,
+4. has a second agent, with fresh eyes, review the cut-outs on black and on white,
+   redo the bad ones with a better setting and keep whichever version is better
+   (clean product shots that pass a strict chroma-key check skip this review),
 5. tells you what worked, what failed and why.
 
 Output goes to a new `<name>-no-bg/` folder next to the input. Originals are never
@@ -117,7 +118,8 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 | `--square` · `--pad PCT` · `--size PX` | square canvas · margin around the subject · longest side |
 | `--clean-edges` | remove the old background's colour halo from hair and fur edges |
 | `--fast-edges` | skip edge matting: faster, coarser hair |
-| `--review-sheets` | sheets and close-ups for reviewing the cut-outs |
+| `--review-sheets` | sheets and close-ups for reviewing the cut-outs that need it |
+| `--review-all` | with `--review-sheets`: also sheet the ones the chroma-key check certified |
 | `--only FILE` | redo just some images, keeping their output names |
 | `--dry-run --json` | scan and plan only; one JSON event per line for agents |
 | `doctor` | check the machine, and what `auto` would pick right now |
