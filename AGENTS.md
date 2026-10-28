@@ -26,6 +26,8 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   on Linux x86_64 in Docker with the real-model smoke test (~10 min, emulated: run it before a
   merge or release). Hosted CI (`.github/workflows/ci.yml`, Linux/macOS/Windows) is skipped
   while the repo is private. Run the full script before every commit.
+- mypy skips code it deems unreachable on the current platform (`sys.platform` checks), so
+  `scripts/ci.sh` also runs it with `--platform linux` and `--platform win32`.
 - Linux arm64 VMs on Apple M4/M5 (Docker, UTM, Lima) advertise SVE the chip cannot run:
   numba and ONNX Runtime die with SIGILL there. Test Linux as x86_64; the runner reports a
   SIGILL crash in plain words (`crash_reason` in `bulk/runner.py`).

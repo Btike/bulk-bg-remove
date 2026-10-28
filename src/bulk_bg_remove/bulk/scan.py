@@ -103,19 +103,23 @@ def _cgroup_memory() -> tuple[float, float] | None:
     (Docker, Kubernetes...), cgroup v2 or v1; None otherwise."""
     if not sys.platform.startswith("linux"):
         return None
-    v1 = CGROUP_ROOT / "memory"
-    v2 = _cgroup_v2_limit()
-    if v2 is not None:
-        limit, used = v2
-    else:
-        limit = _read_number(v1 / "memory.limit_in_bytes")
-        if limit is None:
-            return None
-        used = _read_number(v1 / "memory.usage_in_bytes") or 0
-        used -= _inactive_file(v1 / "memory.stat", "total_inactive_file")
+    found = _cgroup_v2_limit() or _cgroup_v1_limit()
+    if found is None:
+        return None
+    limit, used = found
     if limit >= psutil.virtual_memory().total:  # v1 "no limit" is a huge number
         return None
     return float(limit), float(max(0, used))
+
+
+def _cgroup_v1_limit() -> tuple[int, int] | None:
+    """(limit, used) from the cgroup v1 memory controller, or None."""
+    v1 = CGROUP_ROOT / "memory"
+    limit = _read_number(v1 / "memory.limit_in_bytes")
+    if limit is None:
+        return None
+    used = _read_number(v1 / "memory.usage_in_bytes") or 0
+    return limit, used - _inactive_file(v1 / "memory.stat", "total_inactive_file")
 
 
 def _memory() -> tuple[float, float]:
