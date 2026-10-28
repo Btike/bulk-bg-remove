@@ -1,25 +1,33 @@
 name: Feature request
-description: An idea for the engine, the skill or the UI.
+description: Something the engine, the skill or the UI should do.
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        A kind of photo that comes out badly is a **Bad cut-out**, not a feature request.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shop or marketplace output (size, background, padding, format)
+        - Input or output format
+        - Support for another agent
+        - Speed or RAM
+        - Local UI
+        - Other
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
       label: What you are trying to do
-      description: The job, not the solution. For example "my store needs 2000 px square WebP".
+      description: The job and where the photos end up, before the solution.
     validations:
       required: true
   - type: textarea
     id: idea
     attributes:
       label: What would help
-  - type: dropdown
-    id: entry
-    attributes:
-      label: Where
-      multiple: true
-      options:
-        - Agent skill
-        - Command line
-        - Local UI
-        - Output format or finishing
+      description: A flag, a preset, a change in what the agent does, or anything else.

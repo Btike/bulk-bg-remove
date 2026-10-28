@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for reporting. Please check the [troubleshooting guide](https://github.com/Btike/bulk-bg-remove/blob/main/skills/bulk-bg-remove/references/troubleshooting.md) first.
-        For a cut-out that came out wrong, use the **Bad cut-out** form instead.
+        For a cut-out that came out wrong, use **Bad cut-out**; for an agent that ran the skill the wrong way, **Agent / skill behaviour**.
   - type: textarea
     id: what-happened
     attributes:
@@ -56,5 +56,17 @@ body:
         - Through an agent (Claude Code, Codex, other)
         - Command line
         - Local UI in the browser
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How the engine was installed
+      options:
+        - By the agent skill (uv tool install)
+        - uv tool install
+        - uvx
+        - pip
+        - From a clone (uv sync)
     validations:
       required: true

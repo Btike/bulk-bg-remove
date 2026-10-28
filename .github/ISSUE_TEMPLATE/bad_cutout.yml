@@ -25,6 +25,7 @@ body:
         - Hair, fur or plant edges lost
         - Glass or transparent parts wrong
         - Certified, but it was not clean
+        - Passed the agent's review, but it was not clean
         - Other
     validations:
       required: true
