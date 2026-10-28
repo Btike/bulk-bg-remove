@@ -1,0 +1,51 @@
+name: Bad cut-out
+description: The background removal itself came out wrong.
+labels: [cut-out]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bad cut-outs help pick models and tune the checks. **Only attach photos you are allowed to share publicly**; a crop of the problem area is enough.
+  - type: textarea
+    id: images
+    attributes:
+      label: Original and cut-out
+      description: Drag in the original and the result, or the review sheet (original / on black / on white).
+    validations:
+      required: true
+  - type: dropdown
+    id: problem
+    attributes:
+      label: What is wrong
+      multiple: true
+      options:
+        - Part of the subject is missing
+        - Background left around or inside the subject
+        - Halo or fringe on the edge
+        - Hair, fur or plant edges lost
+        - Glass or transparent parts wrong
+        - Certified, but it was not clean
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: settings
+    attributes:
+      label: Model, profile and flags
+      description: From the run's plan line or `--json` plan event.
+      placeholder: "--model auto --profile uniform (picked birefnet-general-lite) --clean-edges"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`bulk-bg-remove --version`"
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Did a second pass (another profile, `--clean-edges`, another model) fix it?

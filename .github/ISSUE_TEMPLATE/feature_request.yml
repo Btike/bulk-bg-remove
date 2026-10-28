@@ -1,0 +1,25 @@
+name: Feature request
+description: An idea for the engine, the skill or the UI.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The job, not the solution. For example "my store needs 2000 px square WebP".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+  - type: dropdown
+    id: entry
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Agent skill
+        - Command line
+        - Local UI
+        - Output format or finishing

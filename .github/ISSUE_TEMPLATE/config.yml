@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/Btike/bulk-bg-remove/blob/main/skills/bulk-bg-remove/references/troubleshooting.md
+    about: Install, model download, RAM, crashes, image formats and edges. Most problems are answered here.
