@@ -161,6 +161,15 @@ each showing up to 12 cut-outs numbered `#n`, as original | on black | on white.
 With a `--background` they still show the transparent cut-out (a leftover of a
 white background would be invisible on white); the finish itself is mechanical.
 
+The sheets hold only the cut-outs that need eyes. A cut-out whose photo has a
+plain background and that matches it exactly (nothing unlike the background
+removed, no background colour left on the edge, the same mask on the mirrored
+photo, and more: see `job_done.check`) is **certified** (`job_done.certified`)
+and left off the sheets, except 1 in 20 kept as an `AUDIT` entry
+(`review_sheets.audit`). Hair, fur, glass, busy backgrounds and white or clear
+products on white are never certified. If the user wants every
+cut-out reviewed anyway, add `--review-all` to the run.
+
 1. **Get a fresh pair of eyes.** If you can start a subagent (Claude Code: the
    `bg-reviewer` agent this plugin ships, or any subagent; Codex: a sub-agent),
    give it the sheet paths, the `review_sheets` event (it has each image's
@@ -176,11 +185,12 @@ white background would be invisible on white); the finish itself is mechanical.
    flags, never two at once:
 
    ```bash
-   bulk-bg-remove "<path>" -o "<name>-retry-no-bg" --profile <profile> --only <source> [--only <source> ...] <fix flags> [finishing flags] --review-sheets --json --yes
+   bulk-bg-remove "<path>" -o "<name>-retry-no-bg" --profile <profile> --only <source> [--only <source> ...] <fix flags> [finishing flags] --review-sheets --review-all --json --yes
    ```
 
    Keep the first run's finishing flags (`--shop`, `--background`…) so the
-   new file can replace the old one.
+   new file can replace the old one, and keep `--review-all`: every redo must
+   reach the sheets to be compared, even one that now passes certification.
 
    `--only` takes the absolute `source`, a path relative to `<path>`, or a bare
    file name if it is unique, and keeps the usual output names (the same
@@ -193,6 +203,10 @@ white background would be invisible on white); the finish itself is mechanical.
    second pass can make a good cut-out worse. One round only: anything still
    wrong, and every `ask`, goes in your report with the sheet path so the user
    can see it. Mention the retry folder: the user can delete it.
+
+If a reviewer flags an `AUDIT` entry, the certification missed a defect on these
+photos: say so in the report and offer to re-run the batch with `--force
+--review-sheets --review-all` (every cut-out reviewed).
 
 Review by default; skip it only if the user wants speed over checking or says
 not to. The sheets cover the images this run processed: on a re-run where

@@ -150,7 +150,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--review-sheets",
         action="store_true",
-        help="after the run, write sheets showing each cut-out on black and white for review",
+        help="after the run, write sheets for review: cut-outs that need it, on black and white "
+        "(ones a chroma-key check certified are skipped, but for a few audits)",
+    )
+    parser.add_argument(
+        "--review-all",
+        action="store_true",
+        help="with --review-sheets: sheet every cut-out, certified or not",
     )
     parser.add_argument("--dry-run", action="store_true", help="scan and plan, then stop")
     parser.add_argument("-y", "--yes", action="store_true", help="start without asking")
@@ -201,6 +207,7 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         allow_fallback=args.allow_fallback,
         only=tuple(args.only),
         review_sheets=args.review_sheets,
+        review_all=args.review_all,
         finish=finish,
     )
 

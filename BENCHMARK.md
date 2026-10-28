@@ -13,7 +13,9 @@ it needs, measured on 80 hard images and judged blind. These numbers drive
 - With **3.4 GB of free RAM**, `silueta` still scores 8.1 on clean product shots.
   On hair, fur and plants the light models drop to ~5 against 7.6, so the skill
   asks before using one.
-- The cut-out reviewer flags **8 of 9** cut-outs the judges scored 5 or less.
+- The cut-out reviewer flags **8 of 9** cut-outs the judges scored 5 or less, and
+  a chroma-key check spares it **half** of real catalogue photos without passing a
+  single bad cut-out.
 
 ## Setup
 
@@ -129,6 +131,36 @@ sets, without the judges' scores.
 Because a second pass can make a good cut-out worse, the skill runs fixes into
 a separate folder and keeps the new cut-out only when the reviewer judges it
 better.
+
+## Certification: which cut-outs can skip the review
+
+Looking at cut-outs is what costs an agent tokens, so the engine certifies the
+ones that provably need no look, and only those (`core/certify.py`). The photo
+must have a plain background, the subject must stand out from it, and the
+cut-out must match it like a chroma key: nothing unlike the background removed,
+nothing half-transparent away from the cut line, no background colour on the
+edge (even a faint halo) or kept anywhere inside (a handle, a ring), and the
+same mask when the model sees the mirrored photo. Everything else is reviewed.
+
+Cheaper signals were tried first on 225 cut-outs (45 hard images × 5 models):
+edge softness, agreement with a second model, stray fragments. None could skip a
+single hard cut-out without letting a bad one through (two models can make the
+same mistake), so certification is limited to what a chroma-key check can prove.
+
+Checked against the blind judge, default model, thresholds as shipped:
+
+| Set | Certified | Certified ones the judge scored ≤ 6 | Lowest score certified |
+|---|---|---|---|
+| Catalogue (real product photos, 35 judged) | 18 (51%) | **0** | 7 |
+| Hard sets (edges, materials, composition, formats; 45) | 2 | **0** | 9.5 |
+
+The two hard ones are a photo that was already transparent and a flat logo; no
+hair, fur, glass, scene, or white or clear product on white was certified (their
+own white cannot be told from background left inside them). Every cut-out the
+judge scored 6 or less failed at least one check. On a catalogue this spares
+the reviewers about half the photos; 1 in 20 certified cut-outs still goes on
+the sheets as an audit. The mirror check runs the model a second time, on a
+1024 px copy, only for photos that pass the other checks.
 
 ## End-to-end: a fresh agent, no context
 

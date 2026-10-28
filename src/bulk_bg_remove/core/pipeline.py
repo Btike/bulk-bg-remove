@@ -12,6 +12,7 @@ from PIL import Image
 
 from ..domain import OutputFormat
 from ..engine.model import MaskModel
+from .certify import Certification, certify, mirrored_copy
 from .compositing import composite_rgba
 from .finish import Finish, finish_image
 from .io import load_source, save_image
@@ -35,6 +36,7 @@ class ProcessResult:
     width: int
     height: int
     note: str | None = None
+    certification: Certification | None = None  # only when asked for (review runs)
 
 
 def process_image(
@@ -48,6 +50,7 @@ def process_image(
     matting_budget_gb: Callable[[float, EdgeMode], float] | None = None,
     finish: Finish | None = None,
     cutout_preview: Path | None = None,
+    check: bool = False,
 ) -> ProcessResult:
     """Remove the background from one image.
 
@@ -58,6 +61,7 @@ def process_image(
     `finish` (background, square, margin, size) is applied after compositing.
     `cutout_preview`, if given, receives a small transparent copy of the cut-out
     before finishing, for review sheets: a cut-out on white hides white leftovers.
+    `check` runs the chroma-key certification (core/certify.py) on the cut-out.
     """
 
     def stage(value: Stage) -> None:
@@ -77,6 +81,14 @@ def process_image(
         refined = refine_edges(source.rgb, mask, edges, budget_gb=budget)
     stage(Stage.COMPOSITING)
     rgba = composite_rgba(refined.rgb, refined.alpha)
+    certification = None
+    if check:
+        certification = certify(
+            source.rgb,
+            refined.alpha,
+            mask,
+            lambda: remover.alpha_mask(mirrored_copy(source.rgb)),
+        )
     if cutout_preview is not None:
         preview = rgba.copy()
         preview.thumbnail((PREVIEW_SIZE, PREVIEW_SIZE), Image.Resampling.LANCZOS)
@@ -91,4 +103,4 @@ def process_image(
         result = rgba
     stage(Stage.SAVING)
     save_image(result, output_path, output_format, icc_profile=source.icc_profile, tag=tag)
-    return ProcessResult(output_path, result.width, result.height, note)
+    return ProcessResult(output_path, result.width, result.height, note, certification)

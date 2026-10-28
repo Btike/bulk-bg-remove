@@ -32,7 +32,8 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 
 ## Structure
 - `src/bulk_bg_remove/core/` — pure image logic: `io.py`, `matting.py`, `compositing.py`,
-  `finish.py` (opt-in shop finishing), `pipeline.py`.
+  `finish.py` (opt-in shop finishing), `certify.py` (chroma-key certification that lets clean
+  cut-outs skip the visual review), `pipeline.py`.
   No CLI/UI/runner imports.
 - `src/bulk_bg_remove/engine/model.py` — rembg session wrapper (load once per worker, reuse).
 - `src/bulk_bg_remove/domain.py` — shared domain types.
@@ -88,6 +89,15 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   ends an image more than 1 GB above the model's peak (`recycle_above_gb`). Measured on the
   edge-heavy bench: lite 15.7 → 12.3 GB, silueta 9.1 → 3.9 GB. They only restart while free RAM
   is below reserve + full matting + margin (~5.5 GB): a reload costs ~2 s per image.
+- Certification (`core/certify.py`) only runs with `--review-sheets` (not with `--review-all`) and
+  lets a cut-out skip review only when a chroma-key check proves it: plain background, subject
+  in contrast with it, nothing unlike it removed, nothing half-transparent away from the cut,
+  no background colour on the edge or kept inside, same mask on the mirrored photo (a second
+  model pass on a 1024 px copy, run only when the cheap checks pass). A check that cannot
+  run means "needs review", never a failed image. Its thresholds were set against
+  the blind judge's scores (BENCHMARK.md, "Certification"): re-check them against
+  `benchmark/scores.csv` before loosening any. Edge softness and second-model agreement were
+  tried and rejected: they cannot tell a bad hard cut-out from a good one.
 - Worker stdout goes to devnull: pymatting prints harmless "incomplete Cholesky" warnings there.
 - On CPU a second worker adds only ~25% throughput (ONNX already uses every core);
   more workers are slower. `OMP_NUM_THREADS` sets intra-op threads per worker.
