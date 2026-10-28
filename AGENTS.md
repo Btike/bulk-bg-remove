@@ -3,7 +3,8 @@
 Remove image backgrounds in bulk, 100% locally, without touching a single subject
 pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop UI.
 
-> Status: v0.1 under construction. Sections marked _(planned)_ do not exist yet.
+> Status: released on PyPI (`bulk-bg-remove`); `main` is protected and merges only through a PR
+> with the hosted CI green.
 
 ## Stack
 - **Python 3.11–3.13**, managed by **uv** (`.python-version` pins 3.12 for development)
@@ -24,8 +25,9 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
 - **CI runs locally**: `scripts/ci.sh` (lock, ruff, mypy, tests on Python 3.11–3.13, wheel
   build, plugin manifests); `--quick` for lint, types and tests only; `--linux` adds the suite
   on Linux x86_64 in Docker with the real-model smoke test (~10 min, emulated: run it before a
-  merge or release). Hosted CI (`.github/workflows/ci.yml`, Linux/macOS/Windows) is skipped
-  while the repo is private. Run the full script before every commit.
+  merge or release). Hosted CI (`.github/workflows/ci.yml`: Linux, macOS and Windows on
+  Python 3.11–3.13, real-model smoke test) runs on every PR; its 9 checks are required to merge.
+  Run the full script before every commit.
 - mypy skips code it deems unreachable on the current platform (`sys.platform` checks), so
   `scripts/ci.sh` also runs it with `--platform linux` and `--platform win32`.
 - Linux arm64 VMs on Apple M4/M5 (Docker, UTM, Lima) advertise SVE the chip cannot run:
