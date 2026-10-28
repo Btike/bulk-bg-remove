@@ -10,11 +10,12 @@ from PIL import Image
 
 import bulk_bg_remove.bulk.session as session_module
 from bulk_bg_remove.bulk.events import Event
-from bulk_bg_remove.bulk.models import AUTO_MODEL, Profile
+from bulk_bg_remove.bulk.models import AUTO_MODEL, Profile, choose_model
 from bulk_bg_remove.bulk.sample import pick_sample
 from bulk_bg_remove.bulk.scan import Hardware
 from bulk_bg_remove.bulk.session import BulkOptions, BulkSession
 from bulk_bg_remove.cli import run
+from bulk_bg_remove.core.matting import EdgeMode
 from conftest import MakeImage
 from fakes import FAKE_FACTORY
 
@@ -132,3 +133,14 @@ def test_an_empty_folder_only_says_there_are_no_images(
     (tmp_path / "in").mkdir()
     _, plan = plan_event(tmp_path / "in", monkeypatch, 4.0, profile=Profile.COMPLEX)
     assert plan["blockers"] == ["no supported images found"]
+
+
+def test_auto_counts_the_shop_finish_in_the_ram_it_needs() -> None:
+    from bulk_bg_remove.core.finish import Finish
+
+    shop = Finish(background=(255, 255, 255), square=True, pad=7.5, size=2000)
+    plain = choose_model(Profile.UNIFORM, 14.0, EdgeMode.MATTE, 45.0)
+    shopped = choose_model(Profile.UNIFORM, 14.0, EdgeMode.MATTE, 45.0, shop)
+    assert plain.model == "birefnet-general-lite" and plain.fits
+    assert shopped.best_needs_gb > plain.best_needs_gb  # the finish needs more RAM
+    assert shopped.fits and shopped.model != plain.model  # a lighter model that fits

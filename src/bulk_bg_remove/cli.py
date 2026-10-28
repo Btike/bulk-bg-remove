@@ -12,6 +12,7 @@ usage) · 130 interrupted.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -139,6 +140,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="GB",
         help="refuse to start below this much free RAM (default: what the model needs)",
     )
+    parser.add_argument(
+        "--max-megapixels",
+        type=float,
+        metavar="MP",
+        help="leave photos larger than this for another run (they need more RAM)",
+    )
     parser.add_argument("--force", action="store_true", help="redo images already done")
     parser.add_argument(
         "--only",
@@ -195,6 +202,10 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         parser.error(str(exc))
     if output_format is OutputFormat.JPG and not finish.opaque:
         parser.error("--format jpg needs --background: JPEG has no transparency")
+    if args.max_megapixels is not None and not (
+        math.isfinite(args.max_megapixels) and args.max_megapixels > 0
+    ):
+        parser.error("--max-megapixels must be a number above 0")
     options = BulkOptions(
         model=args.model,
         output_format=output_format,
@@ -208,6 +219,7 @@ def run(argv: Sequence[str], *, model_factory: str = DEFAULT_FACTORY) -> int:
         only=tuple(args.only),
         review_sheets=args.review_sheets,
         review_all=args.review_all,
+        max_megapixels=args.max_megapixels,
         finish=finish,
     )
 

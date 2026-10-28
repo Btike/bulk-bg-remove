@@ -121,6 +121,7 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 | `--review-sheets` | sheets and close-ups for reviewing the cut-outs that need it |
 | `--review-all` | with `--review-sheets`: also sheet the ones the chroma-key check certified |
 | `--only FILE` | redo just some images, keeping their output names |
+| `--max-megapixels MP` | leave larger photos for another run (short on RAM) |
 | `--dry-run --json` | scan and plan only; one JSON event per line for agents |
 | `doctor` | check the machine, and what `auto` would pick right now |
 

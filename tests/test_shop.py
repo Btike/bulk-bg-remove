@@ -113,3 +113,45 @@ def test_bad_finishing_options_are_usage_errors(
     assert exited.value.code == 2
     assert message in capfd.readouterr().err
     assert not (tmp_path / "in-no-bg").exists()
+
+
+def test_max_megapixels_leaves_large_photos_for_later(
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    make_image("in/small.jpg", size=(320, 240))
+    make_image("in/large.jpg", size=(3000, 2000))  # 6 MP
+    code, events = cli_json([str(tmp_path / "in"), "--max-megapixels", "2", *BASE], capfd)
+    assert code == 0 and events[-1]["processed"] == 1
+    skipped = events[0]["inventory"]["skipped"]
+    assert [Path(s["path"]).name for s in skipped] == ["large.jpg"]
+    assert "--max-megapixels 2 (6 MP)" in skipped[0]["reason"]
+    assert (tmp_path / "in-no-bg" / "small.png").exists()
+    assert not (tmp_path / "in-no-bg" / "large.png").exists()
+
+
+def test_max_megapixels_counts_large_photos_already_done(
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    make_image("in/small.jpg", size=(320, 240))
+    make_image("in/large.jpg", size=(3000, 2000))
+    cli_json([str(tmp_path / "in"), *BASE], capfd)  # both done, no limit
+    _, events = cli_json([str(tmp_path / "in"), "--max-megapixels", "2", *BASE], capfd)
+    assert events[-1]["already_done"] == 2 and events[-1]["not_processed"] == []
+
+
+def test_max_megapixels_with_only_large_images_says_why(
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    make_image("in/large.jpg", size=(3000, 2000))
+    code, events = cli_json([str(tmp_path / "in"), "--max-megapixels", "2", *BASE], capfd)
+    plan = next(e for e in events if e["type"] == "plan")
+    assert code == 2 and plan["blockers"] == ["every image is larger than --max-megapixels 2"]
+
+
+def test_max_megapixels_rejects_nan(
+    make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
+    make_image("in/a.jpg")
+    with pytest.raises(SystemExit):
+        run([str(tmp_path / "in"), "--max-megapixels", "nan", *BASE], model_factory=FAKE_FACTORY)
+    assert "number above 0" in capfd.readouterr().err

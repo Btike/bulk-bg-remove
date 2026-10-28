@@ -23,6 +23,7 @@
 - During a run, if free RAM drops below the reserve, new images wait (`paused`)
   and continue when memory frees up (`resumed`). Nothing is lost.
 - Very large photos (40+ MP) use more memory per image; the plan warns about it.
+  `--max-megapixels 24` runs the others now and lists the large ones to do later.
 - `worker process was killed by the system (out of memory?)`: the OS stopped it,
   usually for memory. Close apps and re-run the same command: done images are kept.
 

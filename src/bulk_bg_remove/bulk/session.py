@@ -30,7 +30,7 @@ from .plan import (
 )
 from .runner import DEFAULT_FACTORY, Job, Runner, RunSettings
 from .sample import ReviewSheet, write_review_sheets
-from .scan import ImageSource, Inventory, discover, free_disk_gb, probe_hardware
+from .scan import ImageSource, Inventory, Skipped, discover, free_disk_gb, probe_hardware
 from .verify import is_complete, verify_output
 
 # Of the certified cut-outs (sorted by path), every AUDIT_EVERY-th still goes on the
@@ -58,6 +58,7 @@ class BulkOptions:
     only: tuple[str, ...] = ()  # redo just these (paths relative to the input, or names)
     review_sheets: bool = False  # after the run, write sheets for a visual review
     review_all: bool = False  # with review_sheets: also sheet the certified cut-outs
+    max_megapixels: float | None = None  # leave larger photos for a run of their own
     finish: Finish = Finish()  # background, square, margin, size for shops (default: none)
 
     def __post_init__(self) -> None:
@@ -125,9 +126,20 @@ class BulkSession:
     def prepare(self) -> Plan:
         """Phases 1 and 2. Raises FileNotFoundError for a missing input."""
         hardware = probe_hardware()
-        inventory = discover(self._input)
+        found = discover(self._input)
+        _check_output_outside_input(self.output_root, found)
+        # Names come from every image, so leaving large ones out never renames others.
+        targets = map_outputs(
+            [s.path for s in found.sources],
+            found.input_root,
+            self.output_root,
+            self._options.output_format,
+        )
+        by_path = {s.path: s for s in found.sources}
+        if self._options.only:
+            targets = _select(targets, found.input_root, self._options.only)
+        targets, large_done, inventory = self._leave_large(targets, found, by_path)
         self.inventory = inventory
-        _check_output_outside_input(self.output_root, inventory)
         self._emit(
             Event(
                 "scan",
@@ -139,22 +151,14 @@ class BulkSession:
             )
         )
 
-        targets = map_outputs(
-            [s.path for s in inventory.sources],
-            inventory.input_root,
-            self.output_root,
-            self._options.output_format,
-        )
-        by_path = {s.path: s for s in inventory.sources}
-        if self._options.only:
-            targets = _select(targets, inventory.input_root, self._options.only)
-        self._considered = len(targets)
+        self._considered = len(targets) + len(large_done)
         if self._options.force or self._options.only:
             todo, done = targets, []
         else:
             finish = self._options.finish
             todo = [t for t in targets if not is_complete(t.destination, by_path[t.source], finish)]
             done = [t for t in targets if t not in todo]
+        done = [*done, *large_done]
         self._targets, self._done_already = todo, done
 
         remaining = Inventory(
@@ -169,6 +173,7 @@ class BulkSession:
                 hardware.ram_available_gb,
                 self._options.edges,
                 remaining.max_megapixels,
+                self._options.finish,
             )
             self.model = self.model_choice.model
         settings = PlanSettings(
@@ -200,6 +205,10 @@ class BulkSession:
         if not todo and done:
             # Everything is already done: nothing can block an empty run.
             plan = replace(plan, blockers=())
+        elif not todo and len(inventory.skipped) > len(found.skipped):
+            limit = self._options.max_megapixels or 0
+            blocker = f"every image is larger than --max-megapixels {limit:g}"
+            plan = replace(plan, blockers=(blocker,))
         self.plan = plan
         self._emit(
             Event(
@@ -331,6 +340,35 @@ class BulkSession:
         )
         self._emit(Event("finished", report.to_dict()))
         return report
+
+    def _leave_large(
+        self, targets: list[OutputTarget], found: Inventory, by_path: dict[Path, ImageSource]
+    ) -> tuple[list[OutputTarget], list[OutputTarget], Inventory]:
+        """With --max-megapixels, take larger photos out of this run so a machine
+        short of RAM can do the rest now: ones already done count as done, the
+        others are listed as skipped, to run on their own later."""
+        limit = self._options.max_megapixels
+        if limit is None:
+            return targets, [], found
+        large = [t for t in targets if by_path[t.source].megapixels > limit]
+        redo = self._options.force or bool(self._options.only)
+        finish = self._options.finish
+        done = [
+            t for t in large if not redo and is_complete(t.destination, by_path[t.source], finish)
+        ]
+        left = [
+            Skipped(
+                t.source,
+                f"larger than --max-megapixels {limit:g} "
+                f"({by_path[t.source].megapixels:.0f} MP): run it on its own",
+            )
+            for t in large
+            if t not in done
+        ]
+        out = {t.source for t in large}
+        keep = tuple(s for s in found.sources if s.path not in out)
+        inventory = Inventory(found.input_path, found.input_root, keep, (*found.skipped, *left))
+        return [t for t in targets if t.source not in out], done, inventory
 
     @property
     def _certifies(self) -> bool:
