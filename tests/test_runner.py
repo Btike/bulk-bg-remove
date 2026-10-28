@@ -186,7 +186,10 @@ def test_crash_reasons_name_the_signal() -> None:
         assert "out of memory" in crash_reason(-signal.SIGKILL)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="the crash happens on Linux VMs; elsewhere a real SIGILL opens a crash dialog",
+)
 def test_a_worker_killed_by_an_illegal_instruction_says_so(
     make_image: MakeImage, tmp_path: Path, capfd: pytest.CaptureFixture[str]
 ) -> None:
