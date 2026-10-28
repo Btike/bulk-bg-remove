@@ -44,7 +44,7 @@ body:
     id: output
     attributes:
       label: Output or error
-      description: The last lines of the output. With `--json`, the `failed` part of the last (`finished`) event is enough.
+      description: The last lines of the output. With `--json`, the `failed` part of the last (`finished`) event is enough. Paths there are absolute, so replace your home folder with `~`.
       placeholder: |
         STAGE CLEAR · 239 done · 1 failed · 0 already done · 6m 41s
         ✗ IMG_0412.HEIC: worker process was killed by the system (out of memory?)
@@ -120,6 +120,7 @@ body:
         - By the agent skill (uv tool install)
         - uv tool install
         - uvx
+        - pipx
         - pip
         - From a clone (uv sync)
     validations:

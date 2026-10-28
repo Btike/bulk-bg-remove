@@ -22,8 +22,8 @@ scripts/ci.sh --quick    # lint, types and tests only, while you work
 scripts/ci.sh --linux    # adds Linux x86_64 in Docker with the real model (~10 min)
 ```
 
-The same checks run on every pull request on Linux, macOS and Windows, and must pass
-to merge.
+The core checks (lock, ruff, mypy, tests with the real model on Python 3.11–3.13) run on
+every pull request on Linux, macOS and Windows, and must pass to merge.
 
 ## How the project works
 

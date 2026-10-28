@@ -67,8 +67,8 @@ body:
       label: Plan lines from the run
       description: The dim lines under `[2/4 PLAN]`, or the command and flags if you do not have them.
       placeholder: |
-        model birefnet-general-lite · edges matte · needs 12.1 GB free RAM
-        finish: background #ffffff · square · 7.5% margin · 2000 px · jpg
+        model birefnet-general-lite · edges matte · needs 12.5 GB free RAM
+        finish: background #FFFFFF · square · 7.5% margin · 2000 px · jpg
       render: text
     validations:
       required: true
@@ -90,6 +90,6 @@ body:
     id: benchmark
     attributes:
       label: Public benchmark (optional)
-      description: Hard cases join the [benchmark](https://github.com/Btike/bulk-bg-remove/blob/main/BENCHMARK.md) that every model change is measured against. Each image is listed with its author and licence.
+      description: Hard cases may join the [benchmark](https://github.com/Btike/bulk-bg-remove/blob/main/BENCHMARK.md) that every model change is measured against. Each image is listed with its author and licence.
       options:
         - label: I took this photo, and it may be added to the public benchmark under CC BY 4.0 with my GitHub name as the author.
