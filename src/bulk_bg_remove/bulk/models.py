@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from ..core.finish import NO_FINISH, Finish
 from ..core.matting import EdgeMode
 from .events import JSONObject
 from .plan import minimum_free_ram_gb
@@ -118,7 +119,11 @@ class ModelChoice:
 
 
 def choose_model(
-    profile: Profile, free_ram_gb: float, edges: EdgeMode, megapixels: float
+    profile: Profile,
+    free_ram_gb: float,
+    edges: EdgeMode,
+    megapixels: float,
+    finish: Finish = NO_FINISH,
 ) -> ModelChoice:
     """The best-scoring model for `profile` that fits in `free_ram_gb`.
 
@@ -126,7 +131,8 @@ def choose_model(
     and the plan's free-RAM check blocks the run with its real requirement.
     """
     needs = {
-        model: minimum_free_ram_gb(model, edges, megapixels) for model in PROFILE_SCORES[profile]
+        model: minimum_free_ram_gb(model, edges, megapixels, finish)
+        for model in PROFILE_SCORES[profile]
     }
     ranked = sorted(PROFILE_SCORES[profile].items(), key=lambda item: (-item[1], needs[item[0]]))
     best_model, best_score = ranked[0]

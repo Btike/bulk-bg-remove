@@ -1,6 +1,6 @@
 {
   "name": "bulk-bg-remove",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Remove image backgrounds locally and in bulk: one photo or whole folders, with BiRefNet. No uploads, no API keys, originals untouched.",
   "author": {
     "name": "Btike",

@@ -11,8 +11,9 @@ A cut-out is certified only if all of these hold, checked on a downscaled copy:
 6. no background colour is kept anywhere, e.g. inside a handle or a ring,
 7. the model draws the same mask on the mirrored photo (it is not guessing).
 
-Anything else goes to review: busy backgrounds, hair, glass, and white or clear
-products on white (their own white cannot be told from background left inside).
+Anything else goes to review: busy backgrounds, hair, glass, and most white or
+clear products on white (their own white cannot be told from background left
+inside); one is certified only when its whole outline still stands out.
 Measured on the bench's catalogue and hard sets: 18 of 35 catalogue photos
 certified and none of the cut-outs the blind judge scored 6 or less (BENCHMARK.md).
 """

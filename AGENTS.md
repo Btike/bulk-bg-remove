@@ -26,6 +26,8 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   on Linux x86_64 in Docker with the real-model smoke test (~10 min, emulated: run it before a
   merge or release). Hosted CI (`.github/workflows/ci.yml`, Linux/macOS/Windows) is skipped
   while the repo is private. Run the full script before every commit.
+- mypy skips code it deems unreachable on the current platform (`sys.platform` checks), so
+  `scripts/ci.sh` also runs it with `--platform linux` and `--platform win32`.
 - Linux arm64 VMs on Apple M4/M5 (Docker, UTM, Lima) advertise SVE the chip cannot run:
   numba and ONNX Runtime die with SIGILL there. Test Linux as x86_64; the runner reports a
   SIGILL crash in plain words (`crash_reason` in `bulk/runner.py`).
@@ -98,6 +100,9 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   the blind judge's scores (BENCHMARK.md, "Certification"): re-check them against
   `benchmark/scores.csv` before loosening any. Edge softness and second-model agreement were
   tried and rejected: they cannot tell a bad hard cut-out from a good one.
+- Free RAM inside a container comes from its cgroup limit (`_memory` in `bulk/scan.py`, v2 and
+  v1, page cache counted as free), not from the host: without it a 4 GiB container on a 14 GB
+  VM plans for 14 and gets killed. `--model auto` counts the shop finish in each model's need.
 - Worker stdout goes to devnull: pymatting prints harmless "incomplete Cholesky" warnings there.
 - On CPU a second worker adds only ~25% throughput (ONNX already uses every core);
   more workers are slower. `OMP_NUM_THREADS` sets intra-op threads per worker.

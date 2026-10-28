@@ -19,7 +19,7 @@ compatibility: >
   downloads once (40 MB to 1 GB).
 allowed-tools: Bash(bulk-bg-remove:*) Bash(uv tool install bulk-bg-remove*) Bash(uv tool upgrade bulk-bg-remove*)
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # bulk-bg-remove
@@ -137,8 +137,21 @@ offer the choices:
   If the user asked for the best quality, say that the lighter model goes
   against it.
 - **Not enough free RAM for any model**: say how much is free and how much the
-  lightest model needs. If `scan.hardware.ram_total_gb` itself is below that,
-  closing apps cannot fix it: say this machine cannot run it.
+  lightest model needs, then offer the ways to fit, checking each with a
+  `--dry-run` before you suggest it (one per dry-run, `plan.blockers` empty means
+  it fits):
+  1. **Close some apps** (browsers, Docker, video tools) and retry: no quality lost.
+  2. **`--fast-edges`**: skips edge matting, which needs the most RAM per image.
+     Fine for products; hair, fur and plants come out coarser, so say so.
+  3. **Large photos apart**: if `scan.inventory.max_megapixels` is high (20+),
+     `--max-megapixels 24` (or lower) does the rest now; the large ones are
+     listed as skipped with that reason. Run them later on their own, after
+     closing apps or with `--fast-edges`.
+  4. **Without the finishing** (`--shop`, `--background`, `--size`…), if that is
+     what tips it over: transparent cut-outs now. Say plainly that adding the
+     finish later means another run that needs the same RAM as this one.
+  If `scan.hardware.ram_total_gb` itself is below what the lightest model needs
+  even with these, closing apps cannot fix it: say this machine cannot run it.
 - **Not enough disk**: say how much is needed and where.
 - **No supported images**: say what was skipped and why.
 
@@ -166,8 +179,9 @@ plain background and that matches it exactly (nothing unlike the background
 removed, no background colour left on the edge, the same mask on the mirrored
 photo, and more: see `job_done.check`) is **certified** (`job_done.certified`)
 and left off the sheets, except 1 in 20 kept as an `AUDIT` entry
-(`review_sheets.audit`). Hair, fur, glass, busy backgrounds and white or clear
-products on white are never certified. If the user wants every
+(`review_sheets.audit`). Hair, fur, glass and busy backgrounds are never
+certified; a white or clear product on white only when its whole outline still
+stands out from the backdrop, so most of them are reviewed. If the user wants every
 cut-out reviewed anyway, add `--review-all` to the run.
 
 1. **Get a fresh pair of eyes.** If you can start a subagent (Claude Code: the

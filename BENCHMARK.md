@@ -155,8 +155,10 @@ Checked against the blind judge, default model, thresholds as shipped:
 | Hard sets (edges, materials, composition, formats; 45) | 2 | **0** | 9.5 |
 
 The two hard ones are a photo that was already transparent and a flat logo; no
-hair, fur, glass, scene, or white or clear product on white was certified (their
-own white cannot be told from background left inside them). Every cut-out the
+hair, fur, glass or scene was certified. White or clear products on white are
+certified only when their whole outline still stands out (2 of the catalogue's
+5 white-on-white products, both scored 9); the others go to review, because
+their own white cannot be told from background left inside them. Every cut-out the
 judge scored 6 or less failed at least one check. On a catalogue this spares
 the reviewers about half the photos; 1 in 20 certified cut-outs still goes on
 the sheets as an audit. The mirror check runs the model a second time, on a
@@ -208,6 +210,23 @@ fix, the placeholders and scenes that do not belong in a shop, and the small
 originals that `--size 2000` had to enlarge, offering `--size 1000` as an
 option. The whole session cost about $5.70 in model usage, most of it for
 looking at review close-ups.
+
+## Low RAM: the same request at 4, 8 and 12 GiB
+
+Fresh sessions got the shop request on 16 photos (8 catalogue products, a glass
+bottle, a bicycle, a cat, curly hair, a group of people, a cartoon, a wine glass
+and a 45 MP photo), with the engine in a Linux x86_64 container limited to 4, 8
+or 12 GiB and no swap (the engine reads the container's limit, not the host's):
+
+| Limit | What happened |
+|---|---|
+| 4 GiB | The plan blocked (the 45 MP photo needs 6.5 GB). The agent dry-ran each way to fit (`--fast-edges`, `--max-megapixels 24`, no finishing, the large photo alone) and offered the one that fits: the 15 others now, the large one apart |
+| 8 GiB | All 16 done with `silueta` (8.1 on products, best 8.6), reviewed, 8 fine; redos for hair and scenes did not fit, and it said so with the choices |
+| 12 GiB | Same model and outcome (the best one needs 15.2 GB with the shop finish for the 45 MP photo) |
+
+No worker was killed for memory at any limit, and every output was a 2000 px
+white JPEG. Each session cost under $1. Timings are not meaningful here: the
+container emulates x86 on an ARM Mac.
 
 ## Caveats
 

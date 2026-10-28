@@ -165,10 +165,14 @@ def image_peak_gb(
 
 
 def minimum_free_ram_gb(
-    model: str, edges: EdgeMode = EdgeMode.MATTE, megapixels: float = 12.0
+    model: str,
+    edges: EdgeMode = EdgeMode.MATTE,
+    megapixels: float = 12.0,
+    finish: Finish = NO_FINISH,
 ) -> float:
     """Free RAM one worker needs for photos up to `megapixels` (default: a 12 MP photo)."""
-    return model_peak_gb(model) + image_peak_gb(megapixels, edges) + RESERVE_RAM_GB
+    peak = image_peak_gb(megapixels, edges, finish=finish)
+    return model_peak_gb(model) + peak + RESERVE_RAM_GB
 
 
 def estimate_eta_seconds(

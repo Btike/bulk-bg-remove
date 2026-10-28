@@ -44,8 +44,97 @@ class Hardware:
         }
 
 
+# Linux control groups: a container's memory limit lives here, not in /proc/meminfo.
+CGROUP_ROOT = Path("/sys/fs/cgroup")
+PROC_SELF_CGROUP = Path("/proc/self/cgroup")  # where this process sits in the hierarchy
+
+
+def _read_number(path: Path) -> int | None:
+    try:
+        text = path.read_text().strip()
+    except OSError:
+        return None
+    return int(text) if text.isdigit() else None  # "max" (no limit) -> None
+
+
+def _inactive_file(stat: Path, key: str) -> int:
+    """Page cache the kernel can drop: counted as used by the cgroup, but free to us."""
+    try:
+        for line in stat.read_text().splitlines():
+            name, _, value = line.partition(" ")
+            if name == key and value.strip().isdigit():
+                return int(value)
+    except OSError:
+        pass
+    return 0
+
+
+def _cgroup_v2_dirs() -> list[Path]:
+    """This process's cgroup v2 directory and its ancestors, innermost first. In a
+    container with a private namespace that is just the root; under systemd or a
+    host-namespace container it is a nested slice."""
+    own = CGROUP_ROOT
+    try:
+        for line in PROC_SELF_CGROUP.read_text().splitlines():
+            if line.startswith("0::"):
+                own = CGROUP_ROOT / line[3:].strip().lstrip("/")
+    except OSError:
+        pass
+    dirs = [own, *own.parents]
+    return [d for d in dirs if d == CGROUP_ROOT or CGROUP_ROOT in d.parents]
+
+
+def _cgroup_v2_limit() -> tuple[int, int] | None:
+    """(limit, used) from the tightest memory.max on the way up, or None."""
+    best: tuple[int, int] | None = None
+    for directory in _cgroup_v2_dirs():
+        limit = _read_number(directory / "memory.max")
+        if limit is None:
+            continue
+        used = _read_number(directory / "memory.current") or 0
+        used -= _inactive_file(directory / "memory.stat", "inactive_file")
+        if best is None or limit - used < best[0] - best[1]:
+            best = (limit, used)
+    return best
+
+
+def _cgroup_memory() -> tuple[float, float] | None:
+    """(limit, used) in bytes when this process runs under a cgroup memory limit
+    (Docker, Kubernetes...), cgroup v2 or v1; None otherwise."""
+    if not sys.platform.startswith("linux"):
+        return None
+    found = _cgroup_v2_limit() or _cgroup_v1_limit()
+    if found is None:
+        return None
+    limit, used = found
+    if limit >= psutil.virtual_memory().total:  # v1 "no limit" is a huge number
+        return None
+    return float(limit), float(max(0, used))
+
+
+def _cgroup_v1_limit() -> tuple[int, int] | None:
+    """(limit, used) from the cgroup v1 memory controller, or None."""
+    v1 = CGROUP_ROOT / "memory"
+    limit = _read_number(v1 / "memory.limit_in_bytes")
+    if limit is None:
+        return None
+    used = _read_number(v1 / "memory.usage_in_bytes") or 0
+    return limit, used - _inactive_file(v1 / "memory.stat", "total_inactive_file")
+
+
+def _memory() -> tuple[float, float]:
+    """(total, available) RAM in GB, capped by a container's memory limit."""
+    memory = psutil.virtual_memory()
+    total, available = float(memory.total), float(memory.available)
+    cgroup = _cgroup_memory()
+    if cgroup is not None:
+        limit, used = cgroup
+        total, available = min(total, limit), min(available, max(0.0, limit - used))
+    return total / GB, available / GB
+
+
 def available_ram_gb() -> float:
-    return float(psutil.virtual_memory().available) / GB
+    return _memory()[1]
 
 
 def process_rss_gb() -> float:
@@ -90,15 +179,15 @@ def _device() -> tuple[str, bool]:
 
 
 def probe_hardware() -> Hardware:
-    memory = psutil.virtual_memory()
+    total, available = _memory()
     device, coreml = _device()
     return Hardware(
         platform=f"{platform.system()} {platform.machine()}",
         cpu_name=_cpu_name(),
         cpu_logical=os.cpu_count() or 1,
         cpu_performance=_performance_cores(),
-        ram_total_gb=float(memory.total) / GB,
-        ram_available_gb=float(memory.available) / GB,
+        ram_total_gb=total,
+        ram_available_gb=available,
         device=device,
         coreml_listed=coreml,
     )

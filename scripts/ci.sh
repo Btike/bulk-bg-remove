@@ -23,8 +23,12 @@ step "ruff"
 uv run ruff check .
 uv run ruff format --check .
 
-step "mypy (strict)"
+step "mypy (strict) as macOS, Linux and Windows"
+# mypy skips code it thinks this platform never runs (e.g. the Linux cgroup probe on a
+# Mac), so check as each platform the hosted CI tests on.
 uv run mypy
+uv run mypy --platform linux
+uv run mypy --platform win32
 
 if $quick; then
   step "tests (dev Python)"
