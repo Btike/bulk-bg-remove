@@ -176,11 +176,44 @@ The two hard ones are a photo that was already transparent and a flat logo; no
 hair, fur, glass or scene was certified. White or clear products on white are
 certified only when their whole outline still stands out (2 of the catalogue's
 5 white-on-white products, both scored 9); the others go to review, because
-their own white cannot be told from background left inside them. Every cut-out the
+their own white cannot be told from background left inside them (since 0.1.3,
+white printed labels are told apart: see below). Every cut-out the
 judge scored 6 or less failed at least one check. On a catalogue this spares
 the reviewers about half the photos; 1 in 20 certified cut-outs still goes on
 the sheets as an audit. The mirror check runs the model a second time, on a
 1024 px copy, only for photos that pass the other checks.
+
+### Printed labels (0.1.3)
+
+A larger check of the rules (2026-10-29): the 82 bench files through 8 model and edge
+settings (656 cut-outs), every cut-out scored blind by a vision model that never saw
+the engine's verdict. The reviewer was first calibrated on the cut-outs the earlier
+judges had scored (225 pairs: rank correlation 0.75, flagged 86 % of their bad ones,
+never called one of their good ones bad). Nothing certified was bad; but more than half
+of what went to review was fine, and one rule caused most of it:
+"background colour kept inside" had 109 hits, 96 % of them good cut-outs.
+
+The pixels it counted were the white paper of printed labels, not holes. A label
+perforated by text has a long outline for its area and a sharp rim; a hole, clear
+glass or a logo's counter is compact or soft:
+
+| Blob kept inside, background-coloured | Compactness P²/4πA | Rim gradient (ΔE/px) |
+|---|---|---|
+| Printed labels (two products) | 41–56 | 12–13 |
+| Cable-tie loops (real holes) | 2–8 | 1–5 |
+| Logo counters | 2–5 | 28 |
+| Wine glass showing the backdrop | 10.5 | 1.0 |
+
+Blobs with compactness ≥ 15 and a rim gradient ≥ 8 are now treated as print. Re-run
+with the shipped engine on the same 656 cut-outs: certified 140 → **235**, none lost.
+The 95 new ones were scored again, blind, by a stronger model mixed with 25 known-bad
+controls (it caught all 25: 22 bad, 3 acceptable): 90 good, 5 acceptable (lowest 7),
+**0 bad**. They come from two products, one of them in twelve file formats, so the
+gain on a real catalogue depends on how many of its products carry white labels:
+here, with the default model, 20 → 22 of the 37 catalogue files in this run (the table
+above counts the 35 judged ones, measured with an earlier engine). Rules for removed
+shadows, band-aware half-transparency and busy backgrounds were studied in the same
+run and are not shipped: they need more photos to prove.
 
 ## End-to-end: a fresh agent, no context
 
