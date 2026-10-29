@@ -114,6 +114,24 @@ Edge matting costs ~0.35 GB per matted megapixel plus ~2.3 GB per million
 pixels in the uncertain band, so a wire chair needs far more than a bottle.
 18 of the 20 re-checked cut-outs came out pixel-identical after the change.
 
+### float16 weights: tried, not adopted
+
+Half-precision exports of BiRefNet ([onnx-community](https://huggingface.co/onnx-community/BiRefNet-ONNX),
+float32 inputs and outputs) were run against the float32 models on the 82 files, one worker,
+masks only (`--fast-edges`), on 2026-10-28 (Apple M5, CPU):
+
+| Model | Download | Peak RAM | Time per image | Mask IoU vs float32 (mean / worst) |
+|---|---|---|---|---|
+| `birefnet-general-lite` | 224 MB | 10.0 GB | 3.2 s | — |
+| lite, float16 | 115 MB | 10.7 GB | 3.7 s | 0.9993 / 0.956 |
+| `birefnet-general` | 973 MB | 12.1 GB | 5.6 s | — |
+| general, float16 | 490 MB | 12.0 GB | 12.2 s | 0.9999 / 0.999 |
+
+On the CPU the activations at 1024×1024 dominate memory, and ONNX Runtime runs many
+float16 operations slower, so float16 halves the download and nothing else. Times are
+approximate (another job shared the machine). Worth another look with GPU support, where
+float16 is fast.
+
 ## The cut-out reviewer
 
 Three reviewers (the skill's `bg-reviewer` guide, nothing else) looked at the
