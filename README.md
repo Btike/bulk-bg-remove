@@ -92,6 +92,24 @@ bulk-bg-remove                              # opens a drag-and-drop page in your
 ```
 </details>
 
+## Use it in your browser
+
+No agent needed: the engine has a local page for people.
+
+```bash
+uvx bulk-bg-remove                          # or `bulk-bg-remove` once installed
+bulk-bg-remove ~/Pictures/products --ui     # open it with a folder already loaded
+```
+
+Drop photos or a folder (or type a path), pick a model and press **Start**. You watch each
+photo go from the queue to its own progress bar, then the results split into **Passed**
+(the automatic check proved the cut-out clean), **Check by eye** and **Failed**. Open any
+result to compare it with the original on black, white or a checkerboard, zoom in on the
+edges, and **Try again** with other settings if it needs it.
+
+The page runs on `127.0.0.1` only and nothing is uploaded. Press Ctrl+C in the terminal to
+stop it; `--no-browser` prints the address instead of opening it.
+
 ## Which model it picks
 
 You do not choose: the agent looks at a few of your photos, tells the engine
