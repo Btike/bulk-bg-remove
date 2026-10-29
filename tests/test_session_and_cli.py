@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from bulk_bg_remove.bulk.events import Event
+from bulk_bg_remove.bulk.events import Event, JSONObject, JSONValue
 from bulk_bg_remove.bulk.session import BulkOptions, BulkSession
 from bulk_bg_remove.cli import main, run
 from conftest import MakeImage
@@ -215,3 +215,30 @@ def test_json_output_survives_a_reader_that_closes_early(
     assert proc.wait() == 0
     assert json.loads(first)["type"] == "scan"
     assert "BrokenPipeError" not in stderr
+
+
+def test_terminal_summary_is_in_plain_words() -> None:
+    import io
+
+    from rich.console import Console
+
+    from bulk_bg_remove.console import TerminalReporter
+
+    def summary(failed: list[JSONValue]) -> str:
+        out = io.StringIO()
+        reporter = TerminalReporter(Console(file=out, width=200, color_system=None))
+        data: JSONObject = {
+            "output": "/tmp/x-no-bg",
+            "processed": 239,
+            "already_done": 0,
+            "failed": failed,
+            "warnings": [],
+            "seconds": 401.0,
+        }
+        reporter(Event("finished", data))
+        return out.getvalue().splitlines()[0].strip()
+
+    assert summary([]) == "Finished · 239 done · 0 failed · 0 already done · 6m 41s"
+    assert summary([{"path": "/tmp/x/a.jpg", "reason": "worker crashed"}]) == (
+        "Finished with failures · 239 done · 1 failed · 0 already done · 6m 41s"
+    )

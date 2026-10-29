@@ -123,6 +123,12 @@ class BulkSession:
     def output_root(self) -> Path:
         return self._output_root or output_root_for(self._input)
 
+    @property
+    def queue(self) -> tuple[tuple[Path, Path], ...]:
+        """(source, destination) of each image the run will process, in job order:
+        entry N is `job` N in the events. Empty before `prepare()`."""
+        return tuple((t.source, t.destination) for t in self._targets)
+
     def prepare(self) -> Plan:
         """Phases 1 and 2. Raises FileNotFoundError for a missing input."""
         hardware = probe_hardware()
