@@ -13,7 +13,7 @@ description: >
 license: MIT
 compatibility: >
   Needs uv (installs the engine and a matching Python 3.11-3.13 by itself).
-  macOS, Linux and Windows; runs on CPU, or CUDA with onnxruntime-gpu. Product
+  macOS, Linux and Windows; runs on the CPU (no GPU support yet). Product
   photos work from ~3.5 GB of free RAM (best results from ~12 GB); hair, fur,
   people and busy scenes need ~14.5 GB for the best model. Each model
   downloads once (40 MB to 1 GB).

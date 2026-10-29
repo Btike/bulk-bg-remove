@@ -128,7 +128,8 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 ## Requirements
 
 - Tested on macOS (Apple silicon), Linux and Windows, with a real-model run on each in CI
-  (Python 3.11–3.13). CPU by default; CUDA with `onnxruntime-gpu`.
+  (Python 3.11–3.13). Runs on the CPU. GPU support (CUDA, DirectML) is planned; installing
+  `onnxruntime-gpu` by hand is not supported.
 - **3.5 GB of free RAM** is enough for product photos: the engine picks the best
   model that fits (about 12 GB gets the best ones). For hair, fur and plants a
   light model is clearly worse, so the agent asks before using one.
