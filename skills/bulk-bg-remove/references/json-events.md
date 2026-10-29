@@ -28,7 +28,7 @@ during the run. `error` or `interrupted` end the stream early.
 | `worker_loading` / `worker_ready` | `worker`. They can repeat mid-run for the same `worker`: when free RAM runs low, a worker whose memory grew is restarted (~2 s). Normal, not a crash |
 | `worker_failed` | `worker`, `reason` |
 | `job_started` | `job`, `worker`, `source`, `destination` |
-| `job_stage` | `job`, `worker`, `stage`, `progress` (0–1) |
+| `job_stage` | `job`, `worker`, `stage` (`loading`, `removing`, `refining`, `compositing`, `saving`), `progress` (percent, 0–100, reached as the stage starts) |
 | `job_done` | `job`, `worker`, `width`, `height`, `seconds`, `note` (null or a short remark, `; `-separated: `edge matting skipped: …`, `edge matting at N MP to fit free RAM`, `upscaled ×N from a small original (N px)`, and with any finishing also `empty cut-out: no subject detected` or `nothing removed: background kept`, which verify cannot see on a finished output), `source`, `done`, `total` (images finished so far, done or failed, out of the run's total), `certified` (with `--review-sheets`: `true` when the chroma-key check passed and the cut-out needs no review, `false` when it does, `null` when not checked), `check` (why: `certified`, `background is not plain`, `subject too close to the background colour`, `something unlike the background was removed`, `half-transparent areas away from the edge`, `background colour left on the edge`, `background colour kept inside the cut-out`, `the model is unsure (mirrored photo differs)`, `no subject found`, `nothing was removed`, `check could not run (…)`) |
 | `job_failed` | `job`, `worker`, `reason`, `source`, `done`, `total` |
 | `job_skipped` | `source`, `reason` (`already done`) |

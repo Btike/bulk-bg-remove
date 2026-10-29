@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from bulk_bg_remove.ui.server import create_app
 from fakes import FAKE_FACTORY
@@ -160,6 +160,81 @@ def test_open_folder_uses_the_file_manager(client: TestClient, opened: list[Path
     run_to_end(client, created["job"])
     assert client.post(f"/api/jobs/{created['job']}/open").status_code == 200
     assert opened == [Path(created["output"])]
+
+
+def product_shot() -> bytes:
+    """A subject exactly where the fake model looks, on a plain backdrop: certified.
+    Odd sides keep the fake's rectangle symmetric, so the mirror check agrees."""
+    image = Image.new("RGB", (161, 121), (250, 250, 250))
+    ImageDraw.Draw(image).rectangle((40, 30, 120, 90), fill=(60, 140, 40))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def busy_scene() -> bytes:
+    buffer = io.BytesIO()
+    Image.effect_noise((161, 121), 90).convert("RGB").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def upload_bytes(client: TestClient, named: dict[str, bytes]) -> dict:
+    files = [("files", (name, data, "image/png")) for name, data in named.items()]
+    data = {"paths": list(named), "kind": "files"}
+    response = client.post("/api/jobs/upload", files=files, data=data)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_plan_lists_the_queue_and_previews_it_before_the_run(client: TestClient) -> None:
+    created = upload(client, ["shoes/a.jpg", "shoes/b.jpg"], "folder")
+    assert created["queue"] == [{"job": 0, "name": "a.jpg"}, {"job": 1, "name": "b.jpg"}]
+    url = f"/api/jobs/{created['job']}/preview"
+    before = client.get(url, params={"image": 1, "side": "before", "size": 32})
+    assert before.status_code == 200 and before.headers["content-type"] == "image/jpeg"
+    with Image.open(io.BytesIO(before.content)) as thumb:
+        assert max(thumb.size) == 32
+    assert client.get(url, params={"image": 1, "side": "after"}).status_code == 404  # not yet
+    assert client.get(url, params={"image": 0, "size": 8}).status_code == 422
+
+
+def test_ui_runs_are_certified_and_leave_no_review_sheets(client: TestClient) -> None:
+    created = upload_bytes(client, {"bottle.png": product_shot(), "scene.png": busy_scene()})
+    events = run_to_end(client, created["job"])
+    done = {Path(e["source"]).name: e for e in events if e["type"] == "job_done"}
+    assert done["bottle.png"]["certified"] is True
+    assert done["bottle.png"]["check"] == "certified"
+    assert done["scene.png"]["certified"] is False
+    assert done["scene.png"]["check"] == "background is not plain"
+    sheets = next(e for e in events if e["type"] == "review_sheets")["sheets"]
+    assert sheets and all(not Path(sheet["path"]).parent.exists() for sheet in sheets)
+    assert events[-1]["certified"] == 1
+
+
+def test_zoom_returns_a_full_resolution_crop(client: TestClient, tmp_path: Path) -> None:
+    created = upload_bytes(client, {"bottle.png": product_shot()})
+    run_to_end(client, created["job"])
+    url = f"/api/jobs/{created['job']}/zoom"
+    crop = client.get(url, params={"image": 0, "x": 0.25, "y": 0.25, "w": 40, "h": 30})
+    assert crop.status_code == 200 and crop.headers["content-type"] == "image/png"
+    assert crop.headers["x-image-size"] == "161 121"
+    left, top, width, height = map(int, crop.headers["x-region"].split())
+    assert (width, height) == (40, 30)
+    with Image.open(tmp_path / "Downloads" / "bottle-no-bg" / "bottle.png") as output:
+        expected = output.convert("RGBA").crop((left, top, left + width, top + height))
+    with Image.open(io.BytesIO(crop.content)) as got:
+        assert got.tobytes() == expected.tobytes()  # native pixels, not resampled
+
+    edge = client.get(url, params={"image": 0, "x": 1, "y": 1, "w": 2048, "h": 50})
+    assert edge.headers["x-region"] == "0 71 161 50"  # clamped inside the image
+    before = client.get(
+        url, params={"image": 0, "x": 0.5, "y": 0.5, "w": 9, "h": 9, "side": "before"}
+    )
+    assert before.headers["content-type"] == "image/jpeg"
+    assert client.get(url, params={"image": 5, "x": 0, "y": 0, "w": 9, "h": 9}).status_code == 404
+    assert client.get(url, params={"image": 0, "x": 2, "y": 0, "w": 9, "h": 9}).status_code == 422
+    stranger = TestClient(client.app)  # no token
+    assert stranger.get(url, params={"image": 0, "x": 0, "y": 0, "w": 9, "h": 9}).status_code == 403
 
 
 def test_jpg_is_refused_before_anything_is_staged(

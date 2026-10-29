@@ -265,7 +265,9 @@ class TerminalReporter:
     def _on_finished(self, data: JSONObject) -> None:
         failed = data["failed"] if isinstance(data["failed"], list) else []
         warnings = data["warnings"] if isinstance(data["warnings"], list) else []
-        status = "[bold green]GAME CLEAR[/]" if not failed else "[bold yellow]STAGE CLEAR[/]"
+        status = (
+            "[bold green]Finished[/]" if not failed else "[bold yellow]Finished with failures[/]"
+        )
         self.line(
             f"{status} · {_str(data['processed'])} done · {len(failed)} failed · "
             f"{_str(data['already_done'])} already done · {_duration(_num(data['seconds']))}"

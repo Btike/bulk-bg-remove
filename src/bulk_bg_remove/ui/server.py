@@ -45,6 +45,11 @@ from ..paths import OUTPUT_SUFFIX
 
 UI_MODELS = ("birefnet-general-lite", "birefnet-general", "isnet-general-use")
 PREVIEW_MAX_SIDE = 900
+PREVIEW_MIN_SIDE = 32
+PREVIEW_DECODES = 2  # photos decoded at once for previews and close-ups
+ZOOM_MAX_SIDE = 2048  # the viewer's close-up: a crop of the full-resolution image
+# Previews of a job never change (job ids are unique, outputs are written atomically).
+PREVIEW_CACHE = "private, max-age=3600"
 # The page has no background option yet, and JPEG has no transparency.
 JPG_IN_UI = "JPG needs a background colour: use PNG or WebP here"
 
@@ -73,6 +78,8 @@ class Job:
     subscribers: list[Subscriber] = field(default_factory=list)
     status: str = "planned"  # planned | running | finished
     files: dict[int, tuple[Path, Path]] = field(default_factory=dict)
+    # Folders of review sheets the engine wrote: the page does not show them.
+    review_dirs: set[Path] = field(default_factory=set)
 
 
 def reveal_in_file_manager(path: Path) -> None:
@@ -99,6 +106,47 @@ def _display(path: Path) -> str:
         return "~/" + str(path.relative_to(Path.home()))
     except ValueError:
         return str(path)
+
+
+def _relative(path: Path, root: Path) -> str:
+    try:
+        relative = path.relative_to(root).as_posix()
+    except ValueError:
+        return path.name
+    return relative if relative != "." else path.name
+
+
+def _drop_review_sheets(job: Job) -> None:
+    """The UI certifies cut-outs (that needs review sheets) but never shows the
+    sheets: delete them so a UI run leaves nothing in the temp folder."""
+    for folder in job.review_dirs:
+        shutil.rmtree(folder, ignore_errors=True)
+    job.review_dirs.clear()
+
+
+def _load_side(job: Job, image: int, side: str) -> Image.Image:
+    """The original photo (RGB) or the cut-out (RGBA) of one image of a job."""
+    if image not in job.files or side not in ("before", "after"):
+        raise HTTPException(404, "no such image")
+    source, destination = job.files[image]
+    try:
+        if side == "before":
+            return load_source(source).rgb
+        with Image.open(destination) as opened:
+            return opened.convert("RGBA")
+    except (OSError, FileNotFoundError) as exc:
+        raise HTTPException(404, "image not available") from exc
+
+
+def _image_response(picture: Image.Image, side: str, headers: dict[str, str]) -> Response:
+    buffer = BytesIO()
+    if side == "after":
+        picture.save(buffer, format="PNG")
+        media = "image/png"
+    else:
+        picture.save(buffer, format="JPEG", quality=90)
+        media = "image/jpeg"
+    return Response(buffer.getvalue(), media_type=media, headers=headers)
 
 
 def _unique_output(parent: Path, name: str) -> Path:
@@ -135,6 +183,9 @@ def create_app(
     )
     downloads = downloads_dir or Path.home() / "Downloads"
     lock = threading.Lock()
+    # A full photo decoded per preview: a page asking for dozens of thumbnails at once
+    # must not take the RAM the run needs.
+    decoding = threading.BoundedSemaphore(PREVIEW_DECODES)
     events_lock = threading.Lock()  # history + subscriber list must change together
     page = resources.files("bulk_bg_remove.ui").joinpath("static/index.html").read_text("utf-8")
 
@@ -154,6 +205,13 @@ def create_app(
         if event.type == "job_started":
             job_id = int(str(payload["job"]))
             job.files[job_id] = (Path(str(payload["source"])), Path(str(payload["destination"])))
+        elif event.type == "review_sheets":
+            sheets = payload["sheets"] if isinstance(payload["sheets"], list) else []
+            for sheet in sheets:
+                if isinstance(sheet, dict):
+                    job.review_dirs.add(Path(str(sheet["path"])).parent)
+        elif event.type == "finished":
+            _drop_review_sheets(job)
         with events_lock:
             job.events.append(payload)
             subscribers = list(job.subscribers)
@@ -184,6 +242,9 @@ def create_app(
                 edges=options.edges,
                 model_factory=model_factory,
                 min_free_ram_gb=min_free_ram_gb,
+                # Certifies each cut-out, so the page can tell "passed" from "needs a
+                # look". The sheets this also writes are deleted when the run ends.
+                review_sheets=True,
             )
             created: list[Job] = []
             session = BulkSession(
@@ -196,6 +257,14 @@ def create_app(
             plan = job.session.prepare()
         except (FileNotFoundError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
+        # Known before the run starts, so the page can show the queue with previews.
+        job.files = dict(enumerate(job.session.queue))
+        inventory = job.session.inventory
+        root = inventory.input_root if inventory is not None else input_path
+        queue: list[JSONValue] = [
+            {"job": index, "name": _relative(source, root)}
+            for index, (source, _) in job.files.items()
+        ]
         return {
             "job": job_id,
             "name": name,
@@ -203,6 +272,7 @@ def create_app(
             "output_display": _display(output),
             "ok": plan.ok,
             "events": list(job.events),
+            "queue": queue,
         }
 
     def get_job(job_id: str) -> Job:
@@ -309,6 +379,7 @@ def create_app(
             except Exception as exc:  # noqa: BLE001 — surfaced to the UI, not swallowed
                 broadcast(job, Event("error", {"message": f"{type(exc).__name__}: {exc}"}))
             finally:
+                _drop_review_sheets(job)
                 with events_lock:
                     job.status = "finished"
                     subscribers = list(job.subscribers)
@@ -378,24 +449,45 @@ def create_app(
 
     @app.get("/api/jobs/{job_id}/preview")
     def preview(
-        job_id: str, image: Annotated[int, Query(alias="image")], side: str = "after"
+        job_id: str,
+        image: Annotated[int, Query(alias="image")],
+        side: str = "after",
+        size: Annotated[int, Query(ge=PREVIEW_MIN_SIDE, le=PREVIEW_MAX_SIDE)] = PREVIEW_MAX_SIDE,
     ) -> Response:
+        """A downscaled copy for display (thumbnails, the viewer): never the output."""
         job = get_job(job_id)
-        if image not in job.files or side not in ("before", "after"):
-            raise HTTPException(404, "no such image")
-        source, destination = job.files[image]
-        try:
-            if side == "before":
-                picture = load_source(source).rgb
-            else:
-                with Image.open(destination) as opened:
-                    picture = opened.convert("RGBA")
-        except (OSError, FileNotFoundError) as exc:
-            raise HTTPException(404, "image not available") from exc
-        picture.thumbnail((PREVIEW_MAX_SIDE, PREVIEW_MAX_SIDE))
-        buffer = BytesIO()
-        picture.save(buffer, format="PNG" if side == "after" else "JPEG", quality=85)
-        media = "image/png" if side == "after" else "image/jpeg"
-        return Response(buffer.getvalue(), media_type=media, headers={"Cache-Control": "no-store"})
+        with decoding:
+            picture = _load_side(job, image, side)
+            picture.thumbnail((size, size))
+        return _image_response(picture, side, {"Cache-Control": PREVIEW_CACHE})
+
+    @app.get("/api/jobs/{job_id}/zoom")
+    def zoom(
+        job_id: str,
+        image: Annotated[int, Query(alias="image")],
+        x: Annotated[float, Query(ge=0, le=1)],
+        y: Annotated[float, Query(ge=0, le=1)],
+        w: Annotated[int, Query(ge=1, le=ZOOM_MAX_SIDE)],
+        h: Annotated[int, Query(ge=1, le=ZOOM_MAX_SIDE)],
+        side: str = "after",
+    ) -> Response:
+        """A full-resolution crop for the viewer's close-up: up to w x h pixels centred
+        on (x, y) (fractions of the width and height), kept inside the image. The
+        region it covers comes back in X-Region: left top width height."""
+        job = get_job(job_id)
+        with decoding:
+            picture = _load_side(job, image, side)
+            full_w, full_h = picture.size
+            w, h = min(w, full_w), min(h, full_h)
+            left = min(max(round(x * full_w - w / 2), 0), full_w - w)
+            top = min(max(round(y * full_h - h / 2), 0), full_h - h)
+            crop = picture.crop((left, top, left + w, top + h))
+            del picture
+        headers = {
+            "Cache-Control": PREVIEW_CACHE,
+            "X-Region": f"{left} {top} {w} {h}",
+            "X-Image-Size": f"{full_w} {full_h}",
+        }
+        return _image_response(crop, side, headers)
 
     return app
