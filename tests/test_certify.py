@@ -108,3 +108,32 @@ def test_a_check_that_cannot_run_means_review_not_failure() -> None:
 
     result = certify(photo(), alpha(), alpha(), broken)
     assert not result.certified and "could not run" in result.reason
+
+
+def bottle_with_label(text: bool, ink: tuple[int, int, int] = (30, 30, 30)) -> Image.Image:
+    """A white label on the bottle; with text, marks perforate it like print."""
+    image = photo()
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((270, 160, 369, 279), fill=WHITE)  # 100 x 120 label, 25 % of the bottle
+    if text:
+        for row in range(12):
+            for column in range(10):
+                x, y = 274 + column * 10, 164 + row * 10
+                draw.rectangle((x, y, x + 5, y + 1), fill=ink)
+    return image
+
+
+def test_a_white_label_printed_with_text_is_certified() -> None:
+    result = check_cutout(bottle_with_label(text=True), alpha())
+    assert result.certified, result.reason
+
+
+def test_a_plain_white_patch_inside_still_counts_as_background() -> None:
+    result = check_cutout(bottle_with_label(text=False), alpha())
+    assert not result.certified and "kept inside" in result.reason
+
+
+def test_a_perforated_blob_with_a_soft_rim_is_not_excused() -> None:
+    faint = bottle_with_label(text=True, ink=(232, 232, 232))  # as perforated, but barely visible
+    result = check_cutout(faint, alpha())
+    assert not result.certified and "kept inside" in result.reason

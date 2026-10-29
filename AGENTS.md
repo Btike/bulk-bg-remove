@@ -101,7 +101,12 @@ pixel. One engine, two entry points: a CLI/agent mode and a local drag-and-drop 
   run means "needs review", never a failed image. Its thresholds were set against
   the blind judge's scores (BENCHMARK.md, "Certification"): re-check them against
   `benchmark/scores.csv` before loosening any. Edge softness and second-model agreement were
-  tried and rejected: they cannot tell a bad hard cut-out from a good one.
+  tried and rejected: they cannot tell a bad hard cut-out from a good one. "Kept inside"
+  excuses printed labels: a background-coloured blob counts as print when its compactness
+  (perimeter² / 4π·area) is ≥ 15 and its rim's median colour gradient is ≥ 8 ΔE/px (text-
+  perforated labels measure 41–56 and 12–13; holes, clear glass and logo counters stay below
+  11 or have a soft rim). Shadows, band-aware half-transparency and busy backgrounds were
+  studied too (2026-10-29, 656 cut-outs, blind Haiku + Sonnet review) and are not shipped yet.
 - Free RAM inside a container comes from its cgroup limit (`_memory` in `bulk/scan.py`, v2 and
   v1, page cache counted as free), not from the host: without it a 4 GiB container on a 14 GB
   VM plans for 14 and gets killed. `--model auto` counts the shop finish in each model's need.

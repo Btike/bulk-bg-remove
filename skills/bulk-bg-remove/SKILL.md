@@ -19,7 +19,7 @@ compatibility: >
   downloads once (40 MB to 1 GB).
 allowed-tools: Bash(bulk-bg-remove:*) Bash(uv tool install bulk-bg-remove*) Bash(uv tool upgrade bulk-bg-remove*)
 metadata:
-  version: "0.1.2"
+  version: "0.1.3"
 ---
 
 # bulk-bg-remove

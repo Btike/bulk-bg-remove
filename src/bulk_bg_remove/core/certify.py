@@ -8,14 +8,17 @@ A cut-out is certified only if all of these hold, checked on a downscaled copy:
 3. nothing removed differs from that colour (no part of the subject is missing),
 4. nothing is half-transparent away from the cut line (no half-erased part, no haze),
 5. the kept edge does not carry that colour (no halo, even a faint one),
-6. no background colour is kept anywhere, e.g. inside a handle or a ring,
+6. no background colour is kept anywhere, e.g. inside a handle or a ring;
+   printed labels are excused: a white label perforated by text has a long,
+   sharp outline for its area, while a hole or clear glass is compact and soft,
 7. the model draws the same mask on the mirrored photo (it is not guessing).
 
 Anything else goes to review: busy backgrounds, hair, glass, and most white or
-clear products on white (their own white cannot be told from background left
-inside); one is certified only when its whole outline still stands out.
+clear products on white; one is certified only when its whole outline still
+stands out.
 Measured on the bench's catalogue and hard sets: 18 of 35 catalogue photos
-certified and none of the cut-outs the blind judge scored 6 or less (BENCHMARK.md).
+certified and none of the cut-outs the blind judge scored 6 or less; the printed-label
+excuse (0.1.3) added 95 of 656 cut-outs in a later run, none bad (BENCHMARK.md).
 """
 
 from __future__ import annotations
@@ -38,6 +41,9 @@ MAX_PARTIAL = 0.01  # half-transparent pixels > DEEP px from the cut line, share
 DEEP = 4.0
 MAX_LEFTOVER = 0.02  # background-coloured pixels on the kept edge, share of that edge
 MAX_KEPT_BACKGROUND = 0.02  # background-coloured kept pixels anywhere, share of area
+LABEL_MIN_AREA = 0.002  # kept-background blobs judged as possible labels: share of area (>= 20 px)
+LABEL_MIN_COMPACTNESS = 15.0  # perimeter^2 / (4 pi area): text-perforated labels 41-56, holes < 11
+LABEL_MIN_RIM_GRADIENT = 8.0  # median colour gradient on the blob's rim, delta E per px
 MIN_MIRROR_IOU = 0.98  # mask on the photo vs mask on the mirrored photo
 MIRROR_SIDE = 1024  # the mirror pass runs on a copy this size (models infer at ~1024)
 
@@ -98,9 +104,75 @@ def check_cutout(rgb: Image.Image, alpha: Image.Image) -> Certification:
     if leftover > MAX_LEFTOVER:
         return Certification(False, "background colour left on the edge")
 
-    if (kept & like_background).sum() / area > MAX_KEPT_BACKGROUND:
-        return Certification(False, "background colour kept inside the cut-out")
+    kept_background = kept & like_background
+    if kept_background.sum() / area > MAX_KEPT_BACKGROUND:
+        printed = _printed_label_pixels(kept_background, colours, area)
+        if (kept_background.sum() - printed) / area > MAX_KEPT_BACKGROUND:
+            return Certification(False, "background colour kept inside the cut-out")
     return Certification(True, "certified")
+
+
+def _printed_label_pixels(kept_background: np.ndarray, colours: np.ndarray, area: int) -> int:
+    """Pixels of background-coloured blobs that are printed labels, not background:
+    measured on the bench, a white label perforated by text has a compactness of
+    41-56 and a sharp rim (12-13 dE/px), while holes, clear glass and logo
+    counters stay under 11 or have a soft rim."""
+    labels, count = ndimage.label(kept_background)
+    if count == 0:
+        return 0
+    gradient = _colour_gradient(colours)
+    sizes = ndimage.sum(kept_background, labels, index=np.arange(1, count + 1))
+    min_size = max(20, int(LABEL_MIN_AREA * area))
+    printed = 0
+    for index, (rows, cols) in enumerate(ndimage.find_objects(labels)):
+        size = float(sizes[index])
+        if size < min_size:
+            continue
+        box = (
+            slice(max(0, rows.start - 3), rows.stop + 3),
+            slice(max(0, cols.start - 3), cols.stop + 3),
+        )
+        blob = labels[box] == index + 1
+        rim = ndimage.binary_dilation(blob) & ~blob
+        perimeter = int(rim.sum())
+        compactness = perimeter**2 / (4 * np.pi * size)
+        if (
+            compactness >= LABEL_MIN_COMPACTNESS
+            and perimeter > 0
+            and float(np.median(gradient[box][rim])) >= LABEL_MIN_RIM_GRADIENT
+        ):
+            printed += int(size)
+    return printed
+
+
+def _colour_gradient(colours: np.ndarray) -> np.ndarray:
+    """Sobel gradient magnitude in CIELAB, in delta E per pixel."""
+    lab = _lab(colours)
+    total = np.zeros(lab.shape[:2], dtype=np.float32)
+    for channel in range(3):
+        total += ndimage.sobel(lab[..., channel], axis=1) ** 2
+        total += ndimage.sobel(lab[..., channel], axis=0) ** 2
+    return np.sqrt(total) / 8.0
+
+
+def _lab(colours: np.ndarray) -> np.ndarray:
+    """sRGB (0-255) to CIELAB, D65."""
+    c = colours / 255.0
+    linear = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    to_xyz = np.array(
+        [
+            [0.4124564, 0.3575761, 0.1804375],
+            [0.2126729, 0.7151522, 0.0721750],
+            [0.0193339, 0.1191920, 0.9503041],
+        ],
+        dtype=np.float32,
+    )
+    xyz = (linear @ to_xyz.T) / np.array([0.95047, 1.0, 1.08883], dtype=np.float32)
+    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+    return np.stack(
+        [116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])],
+        axis=-1,
+    ).astype(np.float32)
 
 
 def mirror_agrees(mask: Image.Image, mirrored_mask: Image.Image) -> bool:
