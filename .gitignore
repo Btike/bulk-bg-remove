@@ -29,3 +29,6 @@ Thumbs.db
 
 # Local CI environments and builds
 .ci/
+
+# Agent worktrees and local agent settings
+.claude/
