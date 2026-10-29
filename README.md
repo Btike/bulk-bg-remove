@@ -151,7 +151,28 @@ fits in your free RAM. Scores are from a [blind-judged benchmark](https://github
 - **3.5 GB of free RAM** is enough for product photos: the engine picks the best
   model that fits (about 12 GB gets the best ones). For hair, fur and plants a
   light model is clearly worse, so the agent asks before using one.
-- The model downloads once (~220 MB). After that everything runs offline.
+- The first run downloads about 350 MB (the engine, ~125 MB, and the default model, ~225 MB)
+  and takes about 700 MB on disk. After that everything runs offline.
+
+## Help wanted
+
+Early project, one maintainer. These would help most:
+
+- **A GPU to test on.** It runs on the CPU today. GPU support is planned: NVIDIA (CUDA) on
+  Linux and Windows, any card on Windows (DirectML), picked automatically with a fall-back to
+  the CPU. If you have one and can run a few commands, open an issue.
+- **Cut-outs that came out wrong.** Use the
+  [Bad cut-out](https://github.com/Btike/bulk-bg-remove/issues/new/choose) form; hard cases
+  you are allowed to share can join the public benchmark.
+- **Other agents.** Tried it in Cursor, Gemini CLI or another agent? Say how it went
+  (the Agent / skill behaviour form).
+
+Planned, in rough order: a retouch brush in the viewer (erase or restore by hand without
+touching the subject's pixels), a smaller install (edge matting without numba, about 150 MB
+less on disk), GPU support, and certifying more photos automatically (shadows, busy
+backgrounds), only once it is measured never to pass a bad cut-out. See
+[CONTRIBUTING.md](https://github.com/Btike/bulk-bg-remove/blob/main/CONTRIBUTING.md) to
+send code.
 
 ## Credits
 
@@ -160,6 +181,9 @@ Built on [rembg](https://github.com/danielgatis/rembg) and
 Wikimedia Commons): Priscilla Du Preez, Dennis Klein, margenauer, Natasza Remesz,
 Mona Magnussen, Tiko Giorgadze, Dmitry Ratushny. The demo film is drawn in code (GSAP, rendered frame by
 frame in headless Chromium) from the engine's real output.
+
+Built with Claude Code as a coding partner; the design, the benchmark runs and every
+number in this README and in BENCHMARK.md were checked by the author.
 
 ## License
 
