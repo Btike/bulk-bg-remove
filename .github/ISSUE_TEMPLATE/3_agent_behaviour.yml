@@ -100,6 +100,6 @@ body:
     attributes:
       label: Engine version
       description: "`bulk-bg-remove --version`"
-      placeholder: "0.1.1"
+      placeholder: "0.1.2"
     validations:
       required: true

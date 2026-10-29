@@ -1,6 +1,6 @@
 [project]
 name = "bulk-bg-remove"
-version = "0.1.1"
+version = "0.1.2"
 description = "Remove image backgrounds locally and in bulk: an agent skill for Claude Code, Codex and any agent, plus the engine behind it."
 readme = "README.md"
 license = "MIT"
