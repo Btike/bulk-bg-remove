@@ -46,7 +46,7 @@ A single object, not a stream (abridged):
 
 ```json
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "hardware": {"ram_total_gb": 34.4, "ram_available_gb": 22.0, "device": "cpu", "...": "..."},
   "model": "birefnet-general-lite",
   "model_path": "/Users/me/.u2net/birefnet-general-lite.onnx",
