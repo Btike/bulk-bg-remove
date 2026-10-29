@@ -50,8 +50,9 @@ def upload(client: TestClient, paths: list[str], kind: str) -> dict:
     return response.json()
 
 
-def run_to_end(client: TestClient, job: str) -> list[dict]:
-    assert client.post(f"/api/jobs/{job}/start").status_code == 200
+def run_to_end(client: TestClient, job: str, *, start: bool = True) -> list[dict]:
+    if start:
+        assert client.post(f"/api/jobs/{job}/start").status_code == 200
     events = []
     with client.stream("GET", f"/api/jobs/{job}/events") as stream:
         for line in stream.iter_lines():
@@ -250,3 +251,161 @@ def test_jpg_is_refused_before_anything_is_staged(
     response = client.post("/api/jobs/upload", files=files, data=data)
     assert response.status_code == 400 and "background" in response.text
     assert made == []
+
+
+@pytest.fixture
+def redo_dirs(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
+    """Every temporary folder a "Try again" makes."""
+    import tempfile
+
+    made: list[Path] = []
+    real = tempfile.mkdtemp
+
+    def tracking(**kwargs: str) -> str:
+        folder = real(**kwargs)
+        if kwargs.get("prefix", "").startswith("bulk-bg-remove-redo-"):
+            made.append(Path(folder))
+        return folder
+
+    monkeypatch.setattr(tempfile, "mkdtemp", tracking)
+    return made
+
+
+def finished_run(client: TestClient, named: dict[str, bytes]) -> str:
+    created = upload_bytes(client, named)
+    run_to_end(client, created["job"])
+    import time
+
+    for _ in range(100):  # the run thread marks the job finished just after the event
+        if not client.get("/api/system").json()["busy"]:
+            break
+        time.sleep(0.05)
+    return str(created["job"])
+
+
+def wait_redo(client: TestClient, job: str, image: int) -> dict:
+    import time
+
+    for _ in range(600):
+        state = client.get(f"/api/jobs/{job}/redo", params={"image": image}).json()
+        if state["status"] != "running":
+            return dict(state)
+        time.sleep(0.1)
+    raise AssertionError("the redo did not finish")
+
+
+def test_redo_makes_a_candidate_and_leaves_the_output_alone(
+    client: TestClient, tmp_path: Path, redo_dirs: list[Path]
+) -> None:
+    job = finished_run(client, {"scene.png": busy_scene()})
+    output = tmp_path / "Downloads" / "scene-no-bg" / "scene.png"
+    before = output.read_bytes()
+    started = client.post(f"/api/jobs/{job}/redo", json={"image": 0, "edges": "clean"})
+    assert started.status_code == 200, started.text
+    assert started.json()["status"] == "running"
+    done = wait_redo(client, job, 0)
+    assert done["status"] == "done" and done["certified"] is False
+    assert done["check"] == "background is not plain"
+    assert output.read_bytes() == before  # nothing is replaced until the user keeps it
+    new = client.get(f"/api/jobs/{job}/preview", params={"image": 0, "side": "candidate"})
+    assert new.status_code == 200 and new.headers["content-type"] == "image/png"
+    assert len(redo_dirs) == 1 and redo_dirs[0].is_dir()
+    keep = {"image": 0, "candidate": started.json()["candidate"]}
+    assert client.post(f"/api/jobs/{job}/discard", json=keep).status_code == 200
+
+
+def test_keep_replaces_the_output_with_the_candidate(
+    client: TestClient, tmp_path: Path, redo_dirs: list[Path]
+) -> None:
+    job = finished_run(client, {"bottle.png": busy_scene()})
+    output = tmp_path / "Downloads" / "bottle-no-bg" / "bottle.png"
+    candidate = client.post(f"/api/jobs/{job}/redo", json={"image": 0, "edges": "mask"}).json()
+    wait_redo(client, job, 0)
+    expected = next(redo_dirs[0].rglob("bottle.png")).read_bytes()
+    assert expected != output.read_bytes()
+    kept = client.post(
+        f"/api/jobs/{job}/keep", json={"image": 0, "candidate": candidate["candidate"]}
+    )
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["certified"] is False
+    assert output.read_bytes() == expected
+    assert sorted(p.name for p in output.parent.iterdir()) == ["bottle.png"]  # no partial file
+    assert not redo_dirs[0].exists()
+    assert client.get(f"/api/jobs/{job}/redo", params={"image": 0}).status_code == 404
+
+
+def test_discard_deletes_the_candidate(client: TestClient, redo_dirs: list[Path]) -> None:
+    job = finished_run(client, {"bottle.png": product_shot()})
+    candidate = client.post(f"/api/jobs/{job}/redo", json={"image": 0, "edges": "mask"}).json()
+    assert wait_redo(client, job, 0)["certified"] is True
+    wrong = client.post(f"/api/jobs/{job}/discard", json={"image": 0, "candidate": "nope"})
+    assert wrong.status_code == 404
+    discarded = client.post(
+        f"/api/jobs/{job}/discard", json={"image": 0, "candidate": candidate["candidate"]}
+    )
+    assert discarded.status_code == 200
+    assert not redo_dirs[0].exists()
+    side = client.get(f"/api/jobs/{job}/preview", params={"image": 0, "side": "candidate"})
+    assert side.status_code == 404
+
+
+def test_redo_is_refused_while_anything_else_runs(
+    client: TestClient, redo_dirs: list[Path]
+) -> None:
+    job = finished_run(client, {"a.png": product_shot(), "b.png": product_shot()})
+    first = client.post(f"/api/jobs/{job}/redo", json={"image": 0, "edges": "mask"})
+    assert first.status_code == 200
+    second = client.post(f"/api/jobs/{job}/redo", json={"image": 1, "edges": "mask"})
+    assert second.status_code == 409  # one engine at a time
+    import tempfile
+
+    staged = set(Path(tempfile.gettempdir()).glob("bulk-bg-remove-ui-*"))
+    files = [("files", ("c.png", product_shot(), "image/png"))]
+    new_run = client.post("/api/jobs/upload", files=files, data={"paths": ["c.png"]})
+    assert new_run.status_code == 409  # nor a new run while a photo is redone
+    assert set(Path(tempfile.gettempdir()).glob("bulk-bg-remove-ui-*")) == staged  # copies gone
+    wait_redo(client, job, 0)
+
+    batch = upload_bytes(client, {"c.png": product_shot()})
+    assert not redo_dirs[0].exists()  # a new run drops the old run's candidates
+    assert client.post(f"/api/jobs/{batch['job']}/start").status_code == 200
+    busy = client.post(f"/api/jobs/{batch['job']}/redo", json={"image": 0, "edges": "mask"})
+    assert busy.status_code == 409  # the batch is still running
+    run_to_end(client, batch["job"], start=False)
+
+
+def test_stopping_the_server_drops_candidates(tmp_path: Path, redo_dirs: list[Path]) -> None:
+    (tmp_path / "Downloads").mkdir()
+    app = create_app(
+        TOKEN,
+        allowed_hosts={"testserver"},
+        downloads_dir=tmp_path / "Downloads",
+        model_factory=FAKE_FACTORY,
+        min_free_ram_gb=0.1,
+    )
+    with TestClient(app, headers={"X-Token": TOKEN}) as client:  # runs the lifespan
+        job = finished_run(client, {"a.png": product_shot()})
+        assert client.post(f"/api/jobs/{job}/redo", json={"image": 0}).status_code == 200
+        wait_redo(client, job, 0)
+        assert redo_dirs[0].is_dir()
+    assert not redo_dirs[0].exists()
+
+
+def test_redo_endpoints_need_the_token(client: TestClient) -> None:
+    job = finished_run(client, {"a.png": product_shot()})
+    stranger = TestClient(client.app)  # no token
+    assert stranger.post(f"/api/jobs/{job}/redo", json={"image": 0}).status_code == 403
+    assert stranger.get(f"/api/jobs/{job}/redo/options", params={"image": 0}).status_code == 403
+    keep = {"image": 0, "candidate": "x"}
+    assert stranger.post(f"/api/jobs/{job}/keep", json=keep).status_code == 403
+    assert stranger.post(f"/api/jobs/{job}/discard", json=keep).status_code == 403
+
+
+def test_redo_options_rank_the_models(client: TestClient) -> None:
+    job = finished_run(client, {"a.png": product_shot()})
+    options = client.get(f"/api/jobs/{job}/redo/options", params={"image": 0}).json()
+    ids = [m["id"] for m in options["models"]]
+    assert ids[0] == "birefnet-general" and "silueta" in ids
+    assert all(isinstance(m["fits"], bool) for m in options["models"])
+    bad = client.post(f"/api/jobs/{job}/redo", json={"image": 0, "model": "nope"})
+    assert bad.status_code == 400

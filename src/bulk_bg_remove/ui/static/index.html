@@ -15,8 +15,8 @@
   --line: #2b313c; --line-hi: #3d4552;
   --text: #e6edf3; --muted: #9aa5b1;
   --accent: #3fb950; --accent-dark: #1a7f37; --accent-ink: #06210e;
-  --pass: #3fb950; --look: #e3b341; --fail: #ff7b72;
-  --pass-bg: #0f2a17; --look-bg: #2e2309; --fail-bg: #33130f;
+  --pass: #3fb950; --look: #79c0ff; --fail: #ff7b72; --warn: #e3b341;
+  --pass-bg: #0f2a17; --look-bg: #0d2440; --fail-bg: #33130f; --warn-bg: #2e2309;
   --focus: #f0f6fc;
   --px: 3px;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -46,7 +46,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { background: var(--panel); padding: 2px 9px; color: var(--muted); font-size: 12px; white-space: nowrap; --c: var(--line); margin: var(--px); }
 .chip b { color: var(--text); font-weight: 600; }
-.chip.ok b { color: var(--pass); } .chip.warn b { color: var(--look); } .chip.bad b { color: var(--fail); }
+.chip.ok b { color: var(--pass); } .chip.warn b { color: var(--warn); } .chip.bad b { color: var(--fail); }
 
 .panel { background: var(--panel); padding: 18px; margin: var(--px) var(--px) 22px; --c: var(--line); }
 .label { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
@@ -105,7 +105,8 @@ h2 { margin: 0; font-size: 20px; line-height: 1.25; letter-spacing: .02em; }
 .alert { padding: 9px 12px; margin: 10px var(--px); font-size: 13px; --c: var(--line); }
 .alert strong { margin-right: 6px; }
 .alert.bad { background: var(--fail-bg); color: #ffc1ba; --c: #6e2b2b; }
-.alert.warn { background: var(--look-bg); color: #f6d98b; --c: #5c4515; }
+.alert.warn { background: var(--warn-bg); color: #f6d98b; --c: #5c4515; }
+.alert.info { background: var(--look-bg); color: #b6dcff; --c: #1f4f80; }
 details { color: var(--muted); font-size: 13px; margin: 10px 0; }
 details summary { cursor: pointer; }
 details ul { margin: 6px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
@@ -170,7 +171,8 @@ details ul { margin: 6px 0 0; padding-left: 18px; max-height: 180px; overflow: a
 /* Summary */
 .summary { display: grid; grid-template-columns: auto 1fr; gap: 16px 20px; align-items: center; }
 .summary .badge { width: 64px; height: 64px; display: grid; place-items: center; font-size: 30px; font-weight: 900; color: var(--accent-ink); background: var(--pass); margin: var(--px); --c: var(--accent-dark); }
-.summary.has-look .badge { background: var(--look); --c: #9e6a03; color: #2b1d00; }
+.summary.has-look .badge { background: var(--look); --c: #1f6feb; color: #06182b; }
+.summary .why { color: var(--look); font-weight: 600; margin-top: 8px; }
 .summary.has-fail .badge { background: var(--fail); --c: #a40e26; color: #2d0606; }
 .summary.stopped .badge { background: var(--muted); --c: var(--line-hi); color: var(--bg); }
 .summary h2 { font-size: clamp(20px, 2.6vw, 28px); }
@@ -199,12 +201,13 @@ details ul { margin: 6px 0 0; padding-left: 18px; max-height: 180px; overflow: a
 .empty { color: var(--muted); padding: 22px 4px; }
 .show-more { margin-top: 16px; }
 .log { background: #07090d; padding: 10px 12px; margin: 10px var(--px) 0; height: 220px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-word; --c: var(--line); }
-.log .ok { color: var(--pass); } .log .bad { color: var(--fail); } .log .warn { color: var(--look); } .log .dim { color: var(--muted); }
+.log .ok { color: var(--pass); } .log .bad { color: var(--fail); } .log .warn { color: var(--warn); } .log .dim { color: var(--muted); }
 
 /* Viewer */
 dialog#viewer { width: min(1240px, calc(100vw - 32px)); max-width: none; height: min(900px, calc(100dvh - 32px)); max-height: none; padding: 0; border: 0; background: var(--panel); color: var(--text); --c: var(--line-hi); overflow: visible; }
 dialog#viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 dialog::backdrop { background: #05070ae6; }
+dialog#viewer:focus-visible { outline: none; } /* the controls inside show their own focus */
 .v-head { display: flex; align-items: center; gap: 10px 14px; padding: 12px 14px; flex-wrap: wrap; }
 .v-title { min-width: 0; flex: 1 1 240px; }
 .v-title h2 { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -213,22 +216,26 @@ dialog::backdrop { background: #05070ae6; }
 .status.g-passed { background: var(--pass-bg); color: var(--pass); }
 .status.g-look { background: var(--look-bg); color: var(--look); }
 .status.g-failed { background: var(--fail-bg); color: var(--fail); }
-.v-stage { position: relative; overflow: hidden; margin: 0 14px; cursor: zoom-in; touch-action: none; user-select: none; -webkit-user-select: none; }
-.v-stage.zoomed { cursor: grab; }
-.v-stage.dragging { cursor: grabbing; }
+.v-stage { position: relative; overflow: hidden; margin: 0 14px; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.v-stage.tool-zoom { cursor: zoom-in; }
+.v-stage.tool-zoom.zoomed { cursor: grab; }
+.v-stage.tool-zoom.dragging { cursor: grabbing; }
 .v-stage.bg-black { background: #000; } .v-stage.bg-white { background: #fff; }
 .v-pan { position: absolute; inset: 0; }
 .v-layer { position: absolute; inset: 0; overflow: hidden; }
-.v-layer img { position: absolute; max-width: none; }
+.v-layer img { position: absolute; max-width: none; -webkit-user-drag: none; }
 .v-layer img.fit { inset: 0; width: 100%; height: 100%; object-fit: contain; transform-origin: 0 0; }
 .v-layer img.zoom { opacity: 0; }
 .v-layer img.zoom.ready { opacity: 1; }
 .v-layer img.pixel { image-rendering: pixelated; }
-.v-divider { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; }
-.v-divider::after { content: ""; position: absolute; top: 50%; left: -5px; width: 12px; height: 12px; margin-top: -6px; background: var(--accent); }
-.v-tag { position: absolute; top: 8px; padding: 1px 6px; font-size: 11px; background: #0b0e14cc; color: var(--text); pointer-events: none; }
+.v-divider { position: absolute; z-index: 3; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; }
+/* Grab handle: a pixel block with two grip lines, centred on the line. */
+.v-divider::after { content: ""; position: absolute; top: 50%; left: -8px; width: 18px; height: 34px; margin-top: -17px;
+  background: linear-gradient(90deg, var(--accent) 0 5px, #06210e 5px 7px, var(--accent) 7px 11px, #06210e 11px 13px, var(--accent) 13px);
+  box-shadow: 0 -2px 0 0 #06210e, 0 2px 0 0 #06210e, -2px 0 0 0 #06210e, 2px 0 0 0 #06210e; }
+.v-tag { position: absolute; z-index: 4; top: 8px; padding: 1px 6px; font-size: 11px; background: #0b0e14cc; color: var(--text); pointer-events: none; }
 .v-tag.l { left: 8px; } .v-tag.r { right: 8px; }
-.v-loading { position: absolute; right: 10px; bottom: 10px; padding: 2px 8px; font-size: 12px; background: #0b0e14cc; color: var(--text); pointer-events: none; }
+.v-loading { position: absolute; z-index: 4; right: 10px; bottom: 10px; padding: 2px 8px; font-size: 12px; background: #0b0e14cc; color: var(--text); pointer-events: none; }
 .v-foot { padding: 10px 14px 14px; display: grid; gap: 8px; }
 .v-slider { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
 .v-slider input { flex: 1; accent-color: var(--accent); min-height: 28px; }
@@ -238,7 +245,53 @@ dialog::backdrop { background: #05070ae6; }
 .v-nav { margin-left: auto; display: flex; gap: 4px; }
 .v-info { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .v-info .why { color: var(--text); }
+.v-tool { gap: 6px; }
+.v-tool[aria-pressed="true"] { background: var(--text); color: var(--bg); --c: var(--text); font-weight: 700; }
+.v-tool svg { width: 14px; height: 14px; flex: none; }
+.v-tool kbd { background: transparent; color: inherit; padding: 0; opacity: .75; }
+.v-redo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-top: 2px; }
+.v-redo .lbl { color: var(--muted); font-size: 12px; }
+.v-redo-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.v-redo-run { display: flex; align-items: center; gap: 12px; flex: 1 1 260px; min-width: 0; font-size: 12px; color: var(--muted); }
+.v-redo-run .bar { flex: 0 1 300px; height: 12px; }
+.v-redo-done { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; }
+.v-redo-msg { font-size: 12px; color: var(--muted); }
+.v-redo-msg.bad { color: var(--fail); }
 kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); color: var(--text); }
+
+/* Custom select: the WAI-ARIA APG select-only combobox, in the page's style.
+   The list opens below the field (above only when there is no room). */
+.cselect { position: relative; }
+.cs-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.cs-trigger .cs-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-caret { width: 10px; height: 6px; flex: none; background: var(--muted);
+  clip-path: polygon(0 0, 100% 0, 100% 34%, 80% 34%, 80% 67%, 60% 67%, 60% 100%, 40% 100%, 40% 67%, 20% 67%, 20% 34%, 0 34%); }
+.cs-trigger[aria-expanded="true"] { --c: var(--accent); }
+.cs-trigger[aria-expanded="true"] .cs-caret { transform: rotate(180deg); background: var(--accent); }
+.cs-trigger:hover { --c: var(--muted); }
+.cs-trigger[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.cs-list { display: none; position: absolute; z-index: 25; left: var(--px); right: var(--px); top: calc(100% + 6px); margin: 0; padding: 4px 0;
+  list-style: none; background: var(--panel-2); max-height: 288px; overflow-y: auto; --c: var(--line-hi); }
+.cselect.up .cs-list { top: auto; bottom: calc(100% + 6px); }
+.cs-list.shown { display: block; }
+.cs-list [role="option"] { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 2px; padding: 7px 10px 7px 8px; cursor: pointer; }
+.cs-mark { color: var(--accent); visibility: hidden; font-size: 10px; line-height: 1.9; }
+.cs-list [aria-selected="true"] .cs-mark { visibility: visible; }
+.cs-list [aria-selected="true"] .cs-label { font-weight: 700; }
+.cs-list .active { background: #252c39; box-shadow: inset 3px 0 0 var(--accent); }
+.cs-list [aria-disabled="true"] { cursor: not-allowed; color: var(--muted); }
+.cs-hint { display: block; font-size: 11px; color: var(--muted); line-height: 1.4; }
+.cselect.small .cs-trigger { min-height: 32px; padding: 4px 10px; font-size: 13px; min-width: 250px; }
+@keyframes csOpen { from { clip-path: inset(-10px -10px 100% -10px); } to { clip-path: inset(-10px); } }
+@keyframes csOpenUp { from { clip-path: inset(100% -10px -10px -10px); } to { clip-path: inset(-10px); } }
+@keyframes csClose { from { clip-path: inset(-10px); } to { clip-path: inset(-10px -10px 100% -10px); } }
+@keyframes csCloseUp { from { clip-path: inset(-10px); } to { clip-path: inset(100% -10px -10px -10px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .cs-list.opening { animation: csOpen 150ms steps(4, end) both; }
+  .cselect.up .cs-list.opening { animation-name: csOpenUp; }
+  .cs-list.closing { animation: csClose 100ms steps(3, end) both; }
+  .cselect.up .cs-list.closing { animation-name: csCloseUp; }
+}
 
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--panel-2); padding: 9px 14px; z-index: 50; max-width: calc(100% - 40px); --c: var(--line-hi); }
 
@@ -288,6 +341,10 @@ kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); c
   .v-foot { padding: 8px 10px 12px; }
   .v-nav { margin-left: 0; }
   .v-keys { display: none; }
+  .v-controls { gap: 6px 10px; }
+  .v-controls .grp > span { display: none; }
+  .seg-group button { padding: 6px 8px; }
+  .cselect.small .cs-trigger { min-width: 180px; }
 }
 </style>
 </head>
@@ -326,16 +383,9 @@ kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); c
             <button class="btn px" id="load-path" type="button">Load</button>
           </div>
         </div>
-        <div class="field"><label for="model">Model</label><select class="input px" id="model"></select><div class="hint" id="model-hint"></div></div>
-        <div class="field"><label for="edges">Edges</label>
-          <select class="input px" id="edges">
-            <option value="matte">Matte: refined hair, colours untouched</option>
-            <option value="clean">Clean: also removes the background halo</option>
-            <option value="mask">Fast: no edge refinement</option>
-          </select><div class="hint" id="edges-hint"></div></div>
-        <div class="field"><label for="format">Output</label>
-          <select class="input px" id="format"><option value="png">PNG (lossless)</option><option value="webp">WebP (lossless, smaller)</option></select>
-          <div class="hint" id="output-hint"></div></div>
+        <div class="field"><span class="flabel" id="model-label">Model</span><div class="cselect" id="model-box"><div class="input px cs-trigger" id="model" role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-controls="model-list" aria-labelledby="model-label"><span class="cs-value"></span><i class="cs-caret" aria-hidden="true"></i></div><ul class="cs-list px" id="model-list" role="listbox" aria-labelledby="model-label"></ul></div><div class="hint" id="model-hint"></div></div>
+        <div class="field"><span class="flabel" id="edges-label">Edges</span><div class="cselect" id="edges-box"><div class="input px cs-trigger" id="edges" role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-controls="edges-list" aria-labelledby="edges-label"><span class="cs-value"></span><i class="cs-caret" aria-hidden="true"></i></div><ul class="cs-list px" id="edges-list" role="listbox" aria-labelledby="edges-label"></ul></div><div class="hint" id="edges-hint"></div></div>
+        <div class="field"><span class="flabel" id="format-label">Output</span><div class="cselect" id="format-box"><div class="input px cs-trigger" id="format" role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-controls="format-list" aria-labelledby="format-label"><span class="cs-value"></span><i class="cs-caret" aria-hidden="true"></i></div><ul class="cs-list px" id="format-list" role="listbox" aria-labelledby="format-label"></ul></div><div class="hint" id="output-hint"></div></div>
       </div>
     </div>
     <p class="formats" id="formats"></p>
@@ -354,7 +404,7 @@ kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); c
       </div>
       <div id="plan-alerts"></div>
       <details id="plan-skipped" hidden><summary></summary><ul></ul></details>
-      <p class="note">Each cut-out gets an automatic check. Clean ones are marked Passed; the rest are marked Needs a look, so you know which to open.</p>
+      <div class="alert info px" id="plan-check-note"><strong>Before you start:</strong>each cut-out gets an automatic check. Clean ones are marked Passed. Photos on busy backgrounds, or with hair, fur or glass, can't be checked automatically: they are listed under Check by eye so you can look at them yourself. That is normal, not an error.</div>
       <div class="actions">
         <button class="btn px" id="back" type="button">Back</button>
         <button class="btn primary big px" id="start" type="button">Start</button>
@@ -396,7 +446,7 @@ kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); c
 
     <div class="panel px summary" id="summary" hidden role="status">
       <div class="badge px" id="summary-badge" aria-hidden="true"></div>
-      <div><h2 id="summary-title"></h2><p id="summary-sub"></p><p id="summary-out"></p></div>
+      <div><h2 id="summary-title"></h2><p class="why" id="summary-why" hidden></p><p id="summary-sub"></p><p id="summary-out"></p></div>
       <div class="actions">
         <button class="btn primary px" id="open" type="button">Open folder</button>
         <a class="btn px" id="zip" href="#" download>Download ZIP</a>
@@ -430,8 +480,9 @@ kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); c
       <button class="btn small px" id="v-close" type="button">Close</button>
     </div>
   </div>
-  <div class="v-stage checker" id="v-stage" aria-label="Image. Click to zoom in at that point; drag to move when zoomed." role="img">
+  <div class="v-stage checker tool-compare" id="v-stage" role="img" aria-label="Image. Drag to move the compare line. With the Zoom tool on, click to zoom in and drag to move around.">
     <div class="v-pan" id="v-pan">
+      <div class="v-layer" id="v-cand"><img class="fit" alt=""><img class="zoom" alt=""></div>
       <div class="v-layer" id="v-after"><img class="fit" alt=""><img class="zoom" alt=""></div>
       <div class="v-layer" id="v-before"><img class="fit" alt=""><img class="zoom" alt=""></div>
     </div>
@@ -440,16 +491,30 @@ kbd { font: inherit; font-size: 11px; padding: 0 4px; background: var(--cell); c
     <span class="v-loading" id="v-loading" hidden>Loading close-up</span>
   </div>
   <div class="v-foot">
-    <div class="v-slider" id="v-slider-wrap"><label for="v-slider">Original</label><input type="range" id="v-slider" min="0" max="100" value="50"><span aria-hidden="true">Cut-out</span></div>
+    <div class="v-slider" id="v-slider-wrap"><label for="v-slider" id="v-slider-l">Original</label><input type="range" id="v-slider" min="0" max="100" step="0.5" value="50"><span id="v-slider-r" aria-hidden="true">Cut-out</span></div>
     <div class="v-controls">
-      <div class="grp" role="group" aria-label="View"><span>View</span><div class="seg-group px" id="v-mode">
-        <button type="button" data-v="split">Compare</button><button type="button" data-v="after">Cut-out</button><button type="button" data-v="before">Original</button></div></div>
+      <div class="grp" role="group" aria-label="View"><span>View</span><div class="seg-group px" id="v-mode"></div></div>
       <div class="grp" role="group" aria-label="Background"><span>Background</span><div class="seg-group px" id="v-bg">
         <button type="button" data-v="checker">Checker</button><button type="button" data-v="black">Black</button><button type="button" data-v="white">White</button></div></div>
-      <div class="grp" role="group" aria-label="Zoom"><span>Zoom</span><div class="seg-group px" id="v-zoom">
+      <div class="grp" role="group" aria-label="Zoom">
+        <button class="btn small px v-tool" id="v-tool" type="button" aria-pressed="false" title="Zoom tool (Z): click to zoom in, drag to move">
+          <svg viewBox="0 0 10 10" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M2 0h3v1H2zM1 1h1v1H1zM5 1h1v1H5zM0 2h1v3H0zM6 2h1v3H6zM1 5h1v1H1zM5 5h1v1H5zM2 6h3v1H2zM6 6h1v1H6zM6 7h2v1H6zM7 8h2v1H7zM8 9h2v1H8z"/></svg>Zoom <kbd>Z</kbd></button>
+        <div class="seg-group px" id="v-zoom">
         <button type="button" data-v="0">Fit</button><button type="button" data-v="1">100%</button><button type="button" data-v="2">200%</button><button type="button" data-v="4">400%</button></div></div>
     </div>
-    <div class="v-info"><span id="v-why" class="why"></span><span id="v-meta"></span><span class="v-keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> image <kbd>+</kbd> <kbd>-</kbd> zoom <kbd>Shift</kbd>+arrows move <kbd>Esc</kbd> close</span></div>
+    <div class="v-redo" id="v-redo" hidden>
+      <span class="lbl" id="v-redo-label">Try again with</span>
+      <div class="v-redo-opts" id="v-redo-opts" role="group" aria-labelledby="v-redo-label">
+        <button class="btn small px" type="button" data-profile="complex">Hair &amp; fur</button>
+        <button class="btn small px" type="button" data-profile="scene">Busy scene</button>
+        <button class="btn small px" type="button" data-edges="clean">Clean edges</button>
+        <div class="cselect small" id="v-other-box"><div class="input px cs-trigger" id="v-other" role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-controls="v-other-list" aria-label="Try again with another model"><span class="cs-value"></span><i class="cs-caret" aria-hidden="true"></i></div><ul class="cs-list px" id="v-other-list" role="listbox" aria-label="Models that can run on this computer"></ul></div>
+      </div>
+      <div class="v-redo-run" id="v-redo-run" hidden><div class="bar" id="v-redo-bar" role="progressbar" aria-label="Trying again" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div><span id="v-redo-stage"></span></div>
+      <div class="v-redo-done" id="v-redo-done" hidden><span id="v-redo-result"></span><button class="btn primary small px" id="v-keep" type="button">Keep new</button><button class="btn small px" id="v-discard" type="button">Keep current</button></div>
+      <span class="v-redo-msg" id="v-redo-msg" role="status"></span>
+    </div>
+    <div class="v-info"><span id="v-why" class="why"></span><span id="v-meta"></span><span class="v-keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> image <kbd>Z</kbd> zoom tool <kbd>+</kbd> <kbd>-</kbd> zoom <kbd>Shift</kbd>+arrows move <kbd>Esc</kbd> close</span></div>
   </div>
 </dialog>
 <div class="toast px" id="toast" hidden role="status" aria-live="polite"></div>
@@ -462,12 +527,25 @@ const REDUCE = matchMedia("(prefers-reduced-motion: reduce)");
 const NARROW = matchMedia("(max-width: 900px)");
 const STAGES = { loading: "Reading the photo", removing: "Finding the subject", refining: "Refining the edges", compositing: "Cutting it out", saving: "Saving" };
 const GROUPS = ["passed", "look", "failed"];
-const GROUP_LABEL = { passed: "Passed", look: "Needs a look", failed: "Failed" };
+const GROUP_LABEL = { passed: "Passed", look: "Check by eye", failed: "Failed" };
 const GROUP_NOTE = {
   passed: "The automatic check proved these cut-outs clean: plain background, nothing missing, no background left on the edge.",
-  look: "The automatic check could not prove these clean. Open each one and look at the edges on black and on white.",
+  look: "The automatic check can't confirm these on its own (busy backgrounds, hair, fur, glass). That is not an error: open each one and look at the edges on black and on white. Try again offers other settings.",
   failed: "These images produced no usable cut-out. The reason is under each one.",
 };
+// The automatic check's reasons (core/certify.py), in a few plain words.
+const REASON = {
+  "background is not plain": "busy background",
+  "subject too close to the background colour": "subject close to background colour",
+  "something unlike the background was removed": "part may be cut off",
+  "half-transparent areas away from the edge": "see-through areas",
+  "background colour left on the edge": "background colour on the edge",
+  "background colour kept inside the cut-out": "background kept inside",
+  "the model is unsure (mirrored photo differs)": "model unsure",
+  "no subject found": "no subject found",
+  "nothing was removed": "nothing removed",
+};
+function reasonShort(check) { if (!check) return "not checked"; if (String(check).startsWith("check could not run")) return "check could not run"; return REASON[check] || String(check); }
 const PAGE = 60, LANE_SEGS = 20, TOTAL_SEGS = 40, BIN_THUMBS = 5;
 const state = { system: null, job: null, queue: [], total: 0, alreadyDone: 0, outputDisplay: "", perImage: 4 };
 let run = null;
@@ -487,8 +565,11 @@ function esc(t) { const d = document.createElement("div"); d.textContent = Strin
 function base(p) { return String(p).split(/[\\/]/).pop(); }
 function cap(t) { t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
 function plural(n, one, many) { return `${n} ${n === 1 ? one : many}`; }
-function options() { return { model: $("model").value, edges: $("edges").value, output_format: $("format").value }; }
-function previewUrl(id, side, size) { return `/api/jobs/${state.job}/preview?t=${encodeURIComponent(TOKEN)}&image=${id}&side=${side}&size=${size}`; }
+function options() { return { model: sel.model.value, edges: sel.edges.value, output_format: sel.format.value }; }
+function previewUrl(id, side, size) {
+  const it = run && run.items[id]; const v = side === "after" && it && it.v ? `&v=${it.v}` : side === "candidate" && it && it.cand ? `&c=${it.cand.candidate}` : "";
+  return `/api/jobs/${state.job}/preview?t=${encodeURIComponent(TOKEN)}&image=${id}&side=${side}&size=${size}${v}`;
+}
 function log(text, cls = "") { const el = $("log"); const line = document.createElement("div"); if (cls) line.className = cls; line.textContent = text; el.appendChild(line); while (el.childNodes.length > 500) el.removeChild(el.firstChild); el.scrollTop = el.scrollHeight; }
 function makeThumb(id, side, size, cls = "") {
   const box = document.createElement("span"); box.className = "thumb " + (side === "after" ? "checker " : "photo ") + cls;
@@ -505,29 +586,129 @@ function setBar(bar, pct, estPct = 0) {
 }
 
 // ---------- system ----------
+// ---------- custom select (WAI-ARIA APG select-only combobox) ----------
+let escEaten = false; // an Escape a widget used must not also close the viewer
+class CSelect {
+  constructor(id, { placeholder = "", onChange = () => {} } = {}) {
+    this.box = $(id + "-box"); this.trigger = $(id); this.list = $(id + "-list");
+    this.items = []; this.index = -1; this.active = -1; this.placeholder = placeholder; this.onChange = onChange;
+    this.typed = ""; this.typedAt = 0; this.disabled = false;
+    this.trigger.addEventListener("click", () => (this.isOpen() ? this.close() : this.open()));
+    this.trigger.addEventListener("keydown", (e) => this.onKey(e));
+    this.trigger.addEventListener("blur", () => this.close(false)); // click outside, Tab
+    this.list.addEventListener("pointerdown", (e) => e.preventDefault()); // keep focus on the field
+    this.list.addEventListener("click", (e) => { const o = e.target.closest('[role="option"]'); if (o) this.choose(Number(o.dataset.i)); });
+    this.list.addEventListener("pointermove", (e) => { const o = e.target.closest('[role="option"]'); if (o) this.setActive(Number(o.dataset.i), false); });
+    const settle = () => { if (this.list.classList.contains("closing")) this.list.classList.remove("shown", "closing"); };
+    this.list.addEventListener("animationend", settle);
+    this.list.addEventListener("animationcancel", settle); // e.g. its row was hidden mid-close
+  }
+  setOptions(items, value) {
+    this.items = items; const id = this.trigger.id;
+    this.list.innerHTML = items.map((o, i) => `<li role="option" id="${id}-o${i}" data-i="${i}" aria-selected="false"${o.disabled ? ' aria-disabled="true"' : ""}><span class="cs-mark" aria-hidden="true">\u25B6</span><span class="cs-text"><span class="cs-label">${esc(o.label)}</span>${o.hint ? `<span class="cs-hint">${esc(o.hint)}</span>` : ""}</span></li>`).join("");
+    this.index = items.findIndex((o) => o.value === value);
+    if (this.index < 0 && !this.placeholder) this.index = items.findIndex((o) => !o.disabled);
+    this.paint();
+  }
+  get value() { return this.index >= 0 ? this.items[this.index].value : ""; }
+  set value(v) { const i = this.items.findIndex((o) => o.value === v); if (i >= 0) { this.index = i; this.paint(); } }
+  has(v) { return this.items.some((o) => o.value === v); }
+  reset() { this.index = -1; this.paint(); }
+  setDisabled(d) { this.disabled = d; this.trigger.setAttribute("aria-disabled", String(d)); if (d) this.close(false); }
+  paint() {
+    const o = this.items[this.index];
+    this.trigger.querySelector(".cs-value").textContent = o ? o.label : this.placeholder;
+    [...this.list.children].forEach((li, i) => li.setAttribute("aria-selected", String(i === this.index)));
+  }
+  isOpen() { return this.trigger.getAttribute("aria-expanded") === "true"; }
+  open() {
+    if (this.disabled || this.isOpen() || !this.items.length) return;
+    this.list.classList.remove("closing", "opening"); this.list.classList.add("shown");
+    const r = this.trigger.getBoundingClientRect(), h = this.list.offsetHeight;
+    const below = innerHeight - r.bottom, above = r.top;
+    this.box.classList.toggle("up", below < h + 16 && above > below);
+    this.trigger.setAttribute("aria-expanded", "true");
+    void this.list.offsetWidth; this.list.classList.add("opening");
+    this.setActive(this.index >= 0 ? this.index : this.next(-1, 1));
+  }
+  close(focus = true) {
+    if (!this.isOpen()) return;
+    this.trigger.setAttribute("aria-expanded", "false"); this.trigger.removeAttribute("aria-activedescendant");
+    this.list.classList.remove("opening");
+    if (REDUCE.matches) this.list.classList.remove("shown"); else this.list.classList.add("closing");
+    if (focus) this.trigger.focus();
+  }
+  setActive(i, scroll = true) {
+    if (i < 0 || i >= this.items.length) return; this.active = i;
+    [...this.list.children].forEach((li, k) => li.classList.toggle("active", k === i));
+    const li = this.list.children[i]; this.trigger.setAttribute("aria-activedescendant", li.id);
+    if (scroll) li.scrollIntoView({ block: "nearest" });
+  }
+  next(from, dir) { for (let i = from + dir; i >= 0 && i < this.items.length; i += dir) if (!this.items[i].disabled) return i; return from; }
+  choose(i) {
+    const o = this.items[i]; if (!o || o.disabled) return;
+    const changed = i !== this.index; this.index = i; this.paint(); this.close();
+    if (changed || this.placeholder) this.onChange(o.value);
+  }
+  typeahead(ch) {
+    const now = Date.now(); this.typed = now - this.typedAt > 700 ? ch : this.typed + ch; this.typedAt = now;
+    const q = this.typed.toLowerCase(), n = this.items.length, from = this.typed.length === 1 ? this.active + 1 : this.active;
+    for (let k = 0; k < n; k++) { const i = (((from + k) % n) + n) % n; if (!this.items[i].disabled && this.items[i].label.toLowerCase().startsWith(q)) return i; }
+    return -1;
+  }
+  onKey(e) {
+    const k = e.key, printable = k.length === 1 && k !== " " && !e.ctrlKey && !e.metaKey && !e.altKey;
+    if (!this.isOpen()) {
+      if (["Enter", " ", "ArrowDown", "ArrowUp", "Home", "End"].includes(k)) {
+        e.preventDefault(); e.stopPropagation(); this.open();
+        if (k === "Home") this.setActive(this.next(-1, 1)); else if (k === "End") this.setActive(this.next(this.items.length, -1));
+      } else if (printable) { const i = this.typeahead(k); if (i >= 0) { e.preventDefault(); e.stopPropagation(); this.open(); this.setActive(i); } }
+      return;
+    }
+    if (k === "Tab") { this.close(false); return; }
+    e.stopPropagation();
+    if (k === "Escape") { e.preventDefault(); escEaten = true; this.close(); }
+    else if (k === "Enter" || k === " " || (k === "ArrowUp" && e.altKey)) { e.preventDefault(); this.choose(this.active); }
+    else if (k === "ArrowDown") { e.preventDefault(); this.setActive(this.next(this.active, 1)); }
+    else if (k === "ArrowUp") { e.preventDefault(); this.setActive(this.next(this.active, -1)); }
+    else if (k === "Home") { e.preventDefault(); this.setActive(this.next(-1, 1)); }
+    else if (k === "End") { e.preventDefault(); this.setActive(this.next(this.items.length, -1)); }
+    else if (printable) { const i = this.typeahead(k); if (i >= 0) { e.preventDefault(); this.setActive(i); } }
+  }
+}
+const sel = { model: new CSelect("model", { onChange: hints }), edges: new CSelect("edges", { onChange: hints }), format: new CSelect("format", { onChange: hints }) };
+sel.edges.setOptions([
+  { value: "matte", label: "Matte: refined hair, colours untouched", hint: "Best for hair and fur; the subject stays bit-exact" },
+  { value: "clean", label: "Clean: also removes the background halo", hint: "Recolours only semi-transparent edge pixels" },
+  { value: "mask", label: "Fast: no edge refinement", hint: "Fastest; hard edges" },
+], "matte");
+sel.format.setOptions([
+  { value: "png", label: "PNG (lossless)", hint: "Opens everywhere" },
+  { value: "webp", label: "WebP (lossless, smaller)", hint: "Same pixels, smaller files" },
+], "png");
+
 const MODEL_LABEL = { "birefnet-general-lite": "Balanced (BiRefNet lite)", "birefnet-general": "Max quality (BiRefNet)", "isnet-general-use": "Low RAM (IS-Net, weaker edges)" };
 async function loadSystem() {
   const s = await api("/api/system"); state.system = s;
-  const current = $("model").value;
-  $("model").innerHTML = s.models.map((m) => `<option value="${esc(m.id)}" ${m.id === (current || s.default_model) ? "selected" : ""}>${esc(MODEL_LABEL[m.id] || m.id)}</option>`).join("");
+  const current = sel.model.value;
+  sel.model.setOptions(s.models.map((m) => ({ value: m.id, label: MODEL_LABEL[m.id] || m.id, hint: `${m.id}, needs about ${m.min_free_ram_gb} GB of free RAM` })), current || s.default_model);
   $("formats").textContent = "Reads " + s.extensions.join(" ") + " (detected by content). Originals are never modified.";
   hints();
 }
 function renderChips() {
   const s = state.system; if (!s) return; const hw = s.hardware;
-  const need = (s.models.find((m) => m.id === $("model").value) || {}).min_free_ram_gb || 0;
+  const need = (s.models.find((m) => m.id === sel.model.value) || {}).min_free_ram_gb || 0;
   const cls = hw.ram_available_gb >= need ? "ok" : "bad";
   $("chips").innerHTML = `<span class="chip px">CPU <b>${esc(hw.cpu_name)}</b></span><span class="chip px ${cls}">RAM free <b>${esc(hw.ram_available_gb)} GB</b></span><span class="chip px">Device <b>${esc(hw.device)}</b></span>`;
 }
 function hints() {
   const s = state.system; if (!s) return;
-  const m = s.models.find((x) => x.id === $("model").value);
+  const m = s.models.find((x) => x.id === sel.model.value);
   $("model-hint").textContent = m ? `Needs about ${m.min_free_ram_gb} GB of free RAM` : "";
-  $("edges-hint").textContent = { matte: "Best for hair and fur; the subject stays bit-exact", clean: "Recolours only semi-transparent edge pixels", mask: "Fastest" }[$("edges").value];
+  $("edges-hint").textContent = { matte: "Best for hair and fur; the subject stays bit-exact", clean: "Recolours only semi-transparent edge pixels", mask: "Fastest" }[sel.edges.value];
   $("output-hint").textContent = "Dropped and pasted photos go to " + s.downloads + "/<name>-no-bg";
   renderChips();
 }
-for (const id of ["model", "edges", "format"]) $(id).addEventListener("change", hints);
 
 // ---------- input ----------
 async function readEntry(entry, prefix, out) {
@@ -614,12 +795,13 @@ $("back").addEventListener("click", () => show("select"));
 
 // ---------- run ----------
 function resetRun() {
+  clearTimeout(V.poll);
   run = {
     items: state.queue.map((q) => ({ id: q.job, name: q.name, status: "queued" })),
     groups: { passed: [], look: [], failed: [] }, bySource: new Map(),
     waiting: state.queue.length, cursor: 0, queueEls: new Map(), lanes: {},
     finished: 0, startedAt: Date.now(), seconds: [], tab: "passed", shown: PAGE, tabTouched: false,
-    stopping: false, cancelled: 0, over: false, flying: 0, seen: 0, handled: 0, es: null,
+    stopping: false, cancelled: 0, over: false, flying: 0, seen: 0, handled: 0, es: null, redoing: null, end: null,
   };
   $("live").hidden = false; $("summary").hidden = true; $("paused").hidden = true;
   $("lanes").innerHTML = ""; $("log").innerHTML = ""; $("queue").innerHTML = "";
@@ -770,12 +952,12 @@ function handle(e) {
       if (e.stage === "removing" || e.stage === "refining") estimate(w, pct, nextStage(pct)); break; }
     case "job_done": {
       const group = e.certified === true ? "passed" : "look";
-      const why = e.certified === true ? "Passed the automatic check" : e.certified === false ? cap(e.check) : "Not checked";
+      const why = e.certified === true ? "Passed the automatic check" : cap(reasonShort(e.check));
       run.seconds.push(e.seconds); state.perImage = run.seconds.reduce((a, b) => a + b, 0) / run.seconds.length;
       const w = run.lanes[e.worker];
-      if (w) { clearInterval(w.timer); w.bar.className = "bar done"; setBar(w.bar, 100); laneText(w, undefined, group === "passed" ? "Done: passed" : "Done: needs a look", "100%"); w.el.dataset.state = "idle"; fly(w.el.querySelector(".thumb"), landTarget(group)); laneImage(w, e.job, "after"); w.job = null; }
-      land(e.job, group, { w: e.width, h: e.height, seconds: e.seconds, why, note: e.note || "", source: e.source });
-      log(`${group === "passed" ? "Passed" : "Needs a look"}  ${base(e.source)}  ${e.width}x${e.height}  ${e.seconds}s${group === "look" ? "  (" + why + ")" : ""}`, group === "passed" ? "ok" : "warn"); break; }
+      if (w) { clearInterval(w.timer); w.bar.className = "bar done"; setBar(w.bar, 100); laneText(w, undefined, group === "passed" ? "Done: passed" : "Done: check by eye", "100%"); w.el.dataset.state = "idle"; fly(w.el.querySelector(".thumb"), landTarget(group)); laneImage(w, e.job, "after"); w.job = null; }
+      land(e.job, group, { w: e.width, h: e.height, seconds: e.seconds, why, check: e.check, note: e.note || "", source: e.source });
+      log(`${group === "passed" ? "Passed" : "Check by eye"}  ${base(e.source)}  ${e.width}x${e.height}  ${e.seconds}s${group === "look" ? "  (" + why + ")" : ""}`, group === "passed" ? "ok" : "dim"); break; }
     case "job_failed": {
       if ((e.worker === null || e.worker === undefined) && e.reason === "cancelled") {
         // Stop pressed: images that never started are not failures.
@@ -811,29 +993,43 @@ function finish(e, error) {
     for (const wn of e.warnings) log(`Note: ${base(wn.path)}: ${wn.warning}`, "warn");
     if (moved) renderTab();
   }
-  const c = { passed: run.groups.passed.length, look: run.groups.look.length, failed: run.groups.failed.length };
   const notStarted = Math.max(0, state.total - run.finished);
-  const stopped = !!error || run.cancelled > 0 || (run.stopping && notStarted > 0);
-  const parts = [];
-  if (c.look) parts.push(`${c.look} ${c.look === 1 ? "needs" : "need"} a look`);
-  if (c.failed) parts.push(`${c.failed} failed`);
-  if (stopped) parts.push(`${notStarted} not started`);
-  const head = stopped ? "Stopped" : "Done";
-  $("summary-title").textContent = parts.length ? [head, ...parts].join(" · ") : `${head} · all ${c.passed} passed`;
-  const secs = e ? e.seconds : (Date.now() - run.startedAt) / 1000;
-  const already = state.alreadyDone ? `, ${state.alreadyDone} already done` : "";
-  $("summary-sub").textContent = error ? `The run stopped: ${error}` : `${c.passed} passed, ${c.look} ${c.look === 1 ? "needs" : "need"} a look, ${c.failed} failed${already}. Took ${fmtTime(secs)}.`;
-  $("summary-out").textContent = "Saved to " + state.outputDisplay;
-  const box = $("summary"); box.className = "panel px summary";
-  box.classList.add(stopped ? "stopped" : c.failed ? "has-fail" : c.look ? "has-look" : "all-pass");
-  $("summary-badge").textContent = stopped ? "||" : c.failed ? "!" : c.look ? "?" : "✓";
+  run.end = { seconds: e ? e.seconds : (Date.now() - run.startedAt) / 1000, error, notStarted,
+    stopped: !!error || run.cancelled > 0 || (run.stopping && notStarted > 0) };
+  renderSummary();
+  const c = { passed: run.groups.passed.length, look: run.groups.look.length, failed: run.groups.failed.length };
+  const stopped = run.end.stopped;
   $("zip").href = `/api/jobs/${state.job}/zip?t=${encodeURIComponent(TOKEN)}`;
-  $("live").hidden = true; box.hidden = false;
+  $("live").hidden = true; $("summary").hidden = false;
   updateTotals();
   selectTab(c.look ? "look" : c.failed ? "failed" : "passed", false);
   log(`${$("summary-title").textContent}. Output: ${e ? e.output : state.outputDisplay}`, c.failed || stopped ? "warn" : "ok");
   if (run.es) run.es.close();
   $("open").focus({ preventScroll: true });
+}
+function renderSummary() {
+  const c = { passed: run.groups.passed.length, look: run.groups.look.length, failed: run.groups.failed.length };
+  const { stopped, notStarted, error, seconds } = run.end;
+  const parts = [];
+  if (c.look) parts.push(`${c.look} to check by eye`);
+  if (c.failed) parts.push(`${c.failed} failed`);
+  if (stopped) parts.push(`${notStarted} not started`);
+  const head = stopped ? "Stopped" : "Done";
+  $("summary-title").textContent = parts.length ? [head, ...parts].join(" · ") : `${head} · all ${c.passed} passed`;
+  // Why they need eyes: the top reasons, the rest folded into "other".
+  const counts = new Map();
+  for (const id of run.groups.look) { const r = reasonShort(run.items[id].check); counts.set(r, (counts.get(r) || 0) + 1); }
+  const ranked = [...counts].sort((a, b) => b[1] - a[1]);
+  const top = ranked.slice(0, 3).map(([r, n]) => `${n} ${r}`);
+  const rest = ranked.slice(3).reduce((sum, [, n]) => sum + n, 0);
+  if (rest) top.push(`${rest} other`);
+  $("summary-why").hidden = !top.length; $("summary-why").textContent = top.join(" · ");
+  const already = state.alreadyDone ? `, ${state.alreadyDone} already done` : "";
+  $("summary-sub").textContent = error ? `The run stopped: ${error}` : `${c.passed} passed, ${c.look} to check by eye, ${c.failed} failed${already}. Took ${fmtTime(seconds)}.`;
+  $("summary-out").textContent = "Saved to " + state.outputDisplay;
+  const box = $("summary"); box.className = "panel px summary";
+  box.classList.add(stopped ? "stopped" : c.failed ? "has-fail" : c.look ? "has-look" : "all-pass");
+  $("summary-badge").textContent = stopped ? "||" : c.failed ? "!" : c.look ? "i" : "\u2713";
 }
 $("stop").addEventListener("click", async () => {
   $("stop").disabled = true; $("stop").textContent = "Stopping..."; run.stopping = true;
@@ -885,7 +1081,7 @@ function tabFooter() {
   const ids = run.groups[run.tab], shown = $("grid").children.length, rest = ids.length - shown;
   const more = $("show-more"); more.hidden = rest <= 0; more.textContent = `Show ${Math.min(PAGE, rest)} more (${rest} left)`;
   const empty = $("grid-empty"); empty.hidden = ids.length > 0;
-  empty.textContent = run.over ? `No images ${run.tab === "failed" ? "failed" : run.tab === "look" ? "need a look" : "passed"}.` : "None yet. Images land here as they finish.";
+  empty.textContent = run.over ? `No images ${run.tab === "failed" ? "failed" : run.tab === "look" ? "to check by eye" : "passed"}.` : "None yet. Images land here as they finish.";
 }
 $("show-more").addEventListener("click", () => {
   const g = run.tab, ids = run.groups[g], grid = $("grid"); const from = grid.children.length; run.shown = from + PAGE;
@@ -894,48 +1090,81 @@ $("show-more").addEventListener("click", () => {
 });
 
 // ---------- viewer ----------
-const V = { list: [], idx: 0, mode: "split", bg: "checker", zoom: 0, cx: 0.5, cy: 0.5, split: 50, geom: null };
+// Two tools on the image: compare (default: the pointer moves the divider) and
+// zoom (click zooms in at the point, drag moves around). The divider and the
+// chosen view stay put from one image to the next.
+const V = { list: [], idx: 0, mode: "split", pref: "split", bg: "checker", zoom: 0, cx: 0.5, cy: 0.5, split: 50, geom: null, tool: "compare", poll: null };
 const stage = $("v-stage");
+const LAYERS = [["v-before", "before"], ["v-after", "after"], ["v-cand", "candidate"]];
+const LAYER_OF = { before: "v-before", after: "v-after", cand: "v-cand" };
+const REDO_STAGES = Object.assign({ starting: "Starting", "loading the model": "Loading the model", checking: "Checking the new cut-out" }, STAGES);
+$("v-redo-bar").innerHTML = "<i></i>".repeat(LANE_SEGS);
+const other = new CSelect("v-other", { placeholder: "Other model...", onChange: (model) => { other.reset(); startRedo({ model }, model); } });
 function vItem() { return run.items[V.list[V.idx]]; }
+function ready(it) { return it && it.cand && it.cand.status === "done" ? it.cand : null; }
 function openViewer(id, list) {
-  V.list = list.slice(); V.idx = Math.max(0, V.list.indexOf(id)); V.zoom = 0;
+  V.list = list.slice(); V.idx = Math.max(0, V.list.indexOf(id)); V.zoom = 0; V.tool = "compare"; V.visit = (V.visit || 0) + 1;
   const d = $("viewer"); if (!d.open) d.showModal();
   renderViewer(); $("v-close").focus();
 }
 function pressed(groupId, value) { for (const b of $(groupId).children) b.setAttribute("aria-pressed", String(b.dataset.v === String(value))); }
+function modesFor(it) {
+  if (it.status === "failed") return [["before", "Original"]];
+  return ready(it) ? [["split", "Current | New"], ["before", "Original"], ["after", "Current"], ["cand", "New"]]
+    : [["split", "Compare"], ["after", "Cut-out"], ["before", "Original"]];
+}
 function renderViewer() {
-  const it = vItem(); if (!it) return; const id = it.id; const g = it.status;
-  const failed = g === "failed";
+  const it = vItem(); if (!it) return; const g = it.status;
   $("v-name").textContent = base(it.name);
   $("v-pos").textContent = `${V.idx + 1} of ${V.list.length} in ${GROUP_LABEL[g] || g}${it.name.includes("/") ? ", " + it.name : ""}`;
-  $("v-why").innerHTML = `<span class="status g-${g}">${GROUP_LABEL[g]}</span>${esc(it.why || "")}`;
+  const why = g === "look" ? cap(it.check || "not checked") : it.why || "";
+  $("v-why").innerHTML = `<span class="status g-${g}">${GROUP_LABEL[g]}</span>${esc(why)}`;
   $("v-meta").textContent = [it.w ? `${it.w} x ${it.h} px` : "", it.seconds ? `${it.seconds}s` : "", it.note ? "Note: " + it.note : ""].filter(Boolean).join(", ");
   $("v-prev").disabled = V.idx === 0; $("v-next").disabled = V.idx >= V.list.length - 1;
-  if (failed) V.mode = "before";
-  else if (V.mode === "before" && V.forced) V.mode = "split";
-  V.forced = failed;
-  for (const b of $("v-mode").children) b.disabled = failed && b.dataset.v !== "before";
-  for (const [layer, side] of [["v-after", "after"], ["v-before", "before"]]) {
+  const modes = modesFor(it);
+  V.mode = modes.some(([m]) => m === V.pref) ? V.pref : modes[0][0];
+  $("v-mode").innerHTML = modes.map(([m, label]) => `<button type="button" data-v="${m}">${label}</button>`).join("");
+  const c = ready(it);
+  for (const [layer, side] of LAYERS) {
     const fit = $(layer).querySelector("img.fit"), zoom = $(layer).querySelector("img.zoom");
-    zoom.classList.remove("ready"); zoom.removeAttribute("src");
-    if (side === "after" && failed) { fit.removeAttribute("src"); continue; }
-    fit.alt = side === "after" ? `Cut-out of ${base(it.name)}` : `Original ${base(it.name)}`;
-    fit.src = previewUrl(id, side, 900);
+    zoom.classList.remove("ready"); zoom.removeAttribute("src"); delete zoom.dataset.key;
+    const show = side === "before" || (side === "after" && g !== "failed") || (side === "candidate" && c);
+    if (!show) { fit.removeAttribute("src"); continue; }
+    fit.alt = side === "before" ? `Original ${base(it.name)}` : side === "after" ? `Current cut-out of ${base(it.name)}` : `New cut-out of ${base(it.name)}`;
+    const url = previewUrl(it.id, side, 900);
+    if (fit.getAttribute("src") !== url) fit.src = url;
   }
   // Warm the neighbours so arrows feel instant.
-  for (const n of [V.idx - 1, V.idx + 1]) { const nb = run.items[V.list[n]]; if (nb && nb.status !== "failed") { new Image().src = previewUrl(nb.id, "after", 900); } }
+  for (const n of [V.idx - 1, V.idx + 1]) { const nb = run.items[V.list[n]]; if (nb && nb.status !== "failed") new Image().src = previewUrl(nb.id, "after", 900); }
+  renderRedo(it);
   layout();
+}
+function applySplit() {
+  const it = vItem(); if (!it) return;
+  const c = ready(it), split = V.mode === "split";
+  const left = c ? "v-after" : "v-before";
+  $(left).style.clipPath = split ? `inset(0 ${100 - V.split}% 0 0)` : "none";
+  $("v-divider").hidden = !split; $("v-divider").style.left = V.split + "%";
+  $("v-slider").value = V.split;
 }
 function layout() {
   const it = vItem(); if (!it) return;
+  const c = ready(it), split = V.mode === "split";
+  const left = c ? "v-after" : "v-before", right = c ? "v-cand" : "v-after";
+  const showing = split ? [left, right] : [LAYER_OF[V.mode]];
+  for (const [layer] of LAYERS) {
+    const el = $(layer); el.hidden = !showing.includes(layer);
+    el.style.zIndex = layer === left && split ? "2" : "1"; el.style.clipPath = "none";
+  }
+  applySplit();
   stage.classList.remove("checker", "bg-black", "bg-white"); stage.classList.add(V.bg === "checker" ? "checker" : "bg-" + V.bg);
+  stage.classList.toggle("tool-zoom", V.tool === "zoom"); stage.classList.toggle("tool-compare", V.tool !== "zoom");
+  $("v-tool").setAttribute("aria-pressed", String(V.tool === "zoom"));
   pressed("v-mode", V.mode); pressed("v-bg", V.bg);
-  const split = V.mode === "split";
-  $("v-after").hidden = V.mode === "before"; $("v-before").hidden = V.mode === "after";
-  $("v-before").style.clipPath = split ? `inset(0 ${100 - V.split}% 0 0)` : "none";
-  $("v-divider").hidden = !split; $("v-divider").style.left = V.split + "%";
-  $("v-tag-l").hidden = V.mode === "after"; $("v-tag-r").hidden = V.mode === "before";
-  $("v-slider-wrap").hidden = !split; $("v-slider").value = V.split;
+  const names = { before: "Original", after: c ? "Current" : "Cut-out", cand: "New" };
+  const lName = split ? (c ? "Current" : "Original") : names[V.mode], rName = c ? "New" : "Cut-out";
+  $("v-tag-l").textContent = lName; $("v-tag-r").textContent = rName; $("v-tag-r").hidden = !split;
+  $("v-slider-wrap").hidden = !split; $("v-slider-l").textContent = lName; $("v-slider-r").textContent = rName;
   for (const b of $("v-bg").children) b.disabled = V.mode === "before";
   // Zoom: a full-resolution crop from the server, placed exactly where the
   // (instantly scaled) preview already shows it.
@@ -943,13 +1172,14 @@ function layout() {
   const canZoom = !!(W && H && Sw && Sh);
   const fitScale = canZoom ? Math.min(Sw / W, Sh / H) : 1;
   for (const b of $("v-zoom").children) { const z = Number(b.dataset.v); b.disabled = !canZoom || (z > 0 && z <= fitScale * 1.05); }
+  $("v-tool").disabled = !canZoom;
   if (V.zoom && (!canZoom || V.zoom <= fitScale * 1.05)) V.zoom = 0;
   pressed("v-zoom", V.zoom);
   stage.classList.toggle("zoomed", !!V.zoom);
   const fx = canZoom ? (Sw - W * fitScale) / 2 : 0, fy = canZoom ? (Sh - H * fitScale) / 2 : 0;
   if (!V.zoom) {
     V.geom = canZoom ? { zoomed: false, s: fitScale, fx, fy, W, H } : null;
-    for (const layer of ["v-after", "v-before"]) { $(layer).querySelector("img.fit").style.transform = ""; const z = $(layer).querySelector("img.zoom"); z.classList.remove("ready"); z.removeAttribute("src"); }
+    for (const [layer] of LAYERS) { $(layer).querySelector("img.fit").style.transform = ""; const z = $(layer).querySelector("img.zoom"); z.classList.remove("ready"); z.removeAttribute("src"); delete z.dataset.key; }
     $("v-loading").hidden = true; return;
   }
   const scale = V.zoom;
@@ -960,19 +1190,20 @@ function layout() {
   const ox = rw * scale < Sw ? (Sw - rw * scale) / 2 : 0, oy = rh * scale < Sh ? (Sh - rh * scale) / 2 : 0;
   V.geom = { zoomed: true, scale, x0, y0, ox, oy, W, H };
   const k = scale / fitScale, tx = ox - fx * k - x0 * scale, ty = oy - fy * k - y0 * scale;
-  const key = `${it.id}:${x0}:${y0}:${rw}:${rh}`;
   let pending = 0;
-  for (const [layer, side] of [["v-after", "after"], ["v-before", "before"]]) {
+  for (const [layer, side] of LAYERS) {
     const fit = $(layer).querySelector("img.fit"), z = $(layer).querySelector("img.zoom");
     fit.style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
-    if ($(layer).hidden || (side === "after" && it.status === "failed")) continue;
+    if ($(layer).hidden || !fit.getAttribute("src")) continue;
     Object.assign(z.style, { left: ox + "px", top: oy + "px", width: rw * scale + "px", height: rh * scale + "px" });
     z.classList.toggle("pixel", scale >= 2);
-    if (z.dataset.key === key && z.classList.contains("ready")) continue;
+    const tag = side === "after" && it.v ? `&v=${it.v}` : side === "candidate" && c ? `&c=${c.candidate}` : "";
+    const key = `${it.id}:${side}${tag}:${x0}:${y0}:${rw}:${rh}`;
+    if (z.dataset.key === key) continue;
     z.classList.remove("ready"); z.dataset.key = key; pending++;
-    z.onload = () => { if (z.dataset.key === key) { z.classList.add("ready"); if (--pending <= 0) $("v-loading").hidden = true; } };
+    z.onload = () => { if (z.dataset.key === key) z.classList.add("ready"); if (--pending <= 0) $("v-loading").hidden = true; };
     z.onerror = () => { if (--pending <= 0) $("v-loading").hidden = true; };
-    z.src = `/api/jobs/${state.job}/zoom?t=${encodeURIComponent(TOKEN)}&image=${it.id}&side=${side}&x=${(x0 + rw / 2) / W}&y=${(y0 + rh / 2) / H}&w=${rw}&h=${rh}`;
+    z.src = `/api/jobs/${state.job}/zoom?t=${encodeURIComponent(TOKEN)}&image=${it.id}&side=${side}&x=${(x0 + rw / 2) / W}&y=${(y0 + rh / 2) / H}&w=${rw}&h=${rh}${tag}`;
   }
   $("v-loading").hidden = pending === 0;
 }
@@ -988,18 +1219,35 @@ function zoomTo(level, px, py) {
 function zoomSteps() { return [...$("v-zoom").children].filter((b) => !b.disabled).map((b) => Number(b.dataset.v)); }
 function zoomBy(dir) { const steps = zoomSteps(); const i = steps.indexOf(V.zoom); const j = Math.min(steps.length - 1, Math.max(0, i + dir)); if (steps[j] !== undefined && steps[j] !== V.zoom) zoomTo(steps[j]); }
 function pan(dx, dy) { const g = V.geom; if (!g || !g.zoomed) return; V.cx += dx / g.scale / g.W; V.cy += dy / g.scale / g.H; layout(); }
-function go(delta) { const j = V.idx + delta; if (j < 0 || j >= V.list.length) return; V.idx = j; renderViewer(); }
+function go(delta) { const j = V.idx + delta; if (j < 0 || j >= V.list.length) return; V.idx = j; V.zoom = 0; V.visit = (V.visit || 0) + 1; renderViewer(); }
+function setTool(tool) { V.tool = tool; layout(); }
+function splitAt(clientX) {
+  const r = stage.getBoundingClientRect();
+  V.split = Math.round(Math.min(100, Math.max(0, (clientX - r.left) / r.width * 100)) * 2) / 2;
+  if (V.mode !== "split" && modesFor(vItem()).some(([m]) => m === "split")) { V.mode = V.pref = "split"; layout(); } else applySplit();
+}
 
 let drag = null;
-stage.addEventListener("pointerdown", (e) => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, moved: false }; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener("dragstart", (e) => e.preventDefault()); // a native image drag would cancel the pointer
+stage.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault(); // no text selection or image drag; this also keeps focus, so:
+  const focused = document.activeElement;
+  if (focused && focused.matches('[role="combobox"]')) focused.blur(); // closes an open list
+  drag = { x: e.clientX, y: e.clientY, moved: false, tool: V.tool }; stage.setPointerCapture(e.pointerId);
+  if (V.tool === "compare") splitAt(e.clientX);
+});
 stage.addEventListener("pointermove", (e) => {
-  if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag) return;
+  if (drag.tool === "compare") { splitAt(e.clientX); return; }
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 5) return;
   drag.moved = true; if (!V.zoom) return; stage.classList.add("dragging");
   $("v-pan").style.transform = `translate(${dx}px, ${dy}px)`;
 });
 stage.addEventListener("pointerup", (e) => {
   if (!drag) return; const d = drag; drag = null; stage.classList.remove("dragging"); $("v-pan").style.transform = "";
+  if (d.tool === "compare") return;
   const r = stage.getBoundingClientRect();
   if (d.moved) { pan(-(e.clientX - d.x), -(e.clientY - d.y)); return; }
   const steps = zoomSteps().filter((z) => z > 0);
@@ -1010,10 +1258,11 @@ stage.addEventListener("pointerup", (e) => {
 stage.addEventListener("pointercancel", () => { drag = null; stage.classList.remove("dragging"); $("v-pan").style.transform = ""; });
 new ResizeObserver(() => { if ($("viewer").open) layout(); }).observe(stage);
 
-$("v-slider").addEventListener("input", () => { V.split = Number($("v-slider").value); layout(); });
-$("v-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && !b.disabled) { V.mode = b.dataset.v; layout(); } });
+$("v-slider").addEventListener("input", () => { V.split = Number($("v-slider").value); applySplit(); });
+$("v-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && !b.disabled) { V.mode = V.pref = b.dataset.v; layout(); } });
 $("v-bg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && !b.disabled) { V.bg = b.dataset.v; layout(); } });
 $("v-zoom").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && !b.disabled) zoomTo(Number(b.dataset.v)); });
+$("v-tool").addEventListener("click", () => setTool(V.tool === "zoom" ? "compare" : "zoom"));
 $("v-prev").addEventListener("click", () => go(-1));
 $("v-next").addEventListener("click", () => go(1));
 $("v-close").addEventListener("click", () => $("viewer").close());
@@ -1021,24 +1270,125 @@ $("viewer").addEventListener("click", (e) => {
   const r = $("viewer").getBoundingClientRect(); // the backdrop, not the dialog's own padding
   if (e.target === $("viewer") && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) $("viewer").close();
 });
+// Escape first leaves the zoom tool (or closes an open list); only then the viewer.
+$("viewer").addEventListener("cancel", (e) => { if (escEaten) { e.preventDefault(); escEaten = false; } });
+$("viewer").addEventListener("close", () => { V.tool = "compare"; });
 $("viewer").addEventListener("keydown", (e) => {
-  const onSlider = e.target === $("v-slider");
+  if (e.key === "Escape") { // an open list already took its Escape (stopPropagation)
+    if (V.tool === "zoom") { e.preventDefault(); escEaten = true; setTool("compare"); } else escEaten = false;
+    return;
+  }
+  if (e.target.closest && e.target.closest('[role="combobox"]')) return;
   if (e.shiftKey && V.zoom && e.key.startsWith("Arrow")) {
-    e.preventDefault(); const g = V.geom; const step = 0.25 * Math.min(stage.clientWidth, stage.clientHeight);
+    e.preventDefault(); const step = 0.25 * Math.min(stage.clientWidth, stage.clientHeight);
     pan(e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0, e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0); return;
   }
-  if (onSlider) return;
+  if (e.target === $("v-slider") || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
   else if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
   else if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomBy(1); }
   else if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomBy(-1); }
   else if (e.key === "0") { e.preventDefault(); zoomTo(0); }
+  else if (e.key === "z" || e.key === "Z") { if (!$("v-tool").disabled) { e.preventDefault(); setTool(V.tool === "zoom" ? "compare" : "zoom"); } }
+});
+
+// ---------- try again ----------
+// Redo one photo with other settings (the engine, into a temporary folder), then
+// compare Current and New and keep one. One redo runs at a time.
+function redoRunning() { return run.redoing !== null && run.redoing !== undefined; }
+function renderRedo(it) {
+  const eligible = it.status === "passed" || it.status === "look";
+  $("v-redo").hidden = !eligible; if (!eligible) return;
+  const c = it.cand, running = c && c.status === "running", done = c && c.status === "done";
+  const busy = redoRunning() && run.redoing !== it.id;
+  $("v-redo-label").textContent = running ? "Trying again" : done ? "New version" : "Try again with";
+  $("v-redo-opts").hidden = running || done; $("v-redo-run").hidden = !running; $("v-redo-done").hidden = !done;
+  for (const b of $("v-redo-opts").querySelectorAll("button")) b.disabled = busy;
+  other.setDisabled(busy);
+  if (running) {
+    setBar($("v-redo-bar"), c.progress || 0);
+    $("v-redo-stage").textContent = `${REDO_STAGES[c.stage] || cap(c.stage)} (${c.progress || 0}%)${c.model ? ", " + c.model : ""}`;
+  }
+  if (done) {
+    const g = c.certified === true ? "passed" : "look";
+    $("v-redo-result").innerHTML = `<span class="status g-${g}">${GROUP_LABEL[g]}</span>${esc(g === "look" ? cap(reasonShort(c.check)) : "")}${c.model ? ` <span class="v-redo-msg">${esc(c.model)}</span>` : ""}`;
+  }
+  const msg = $("v-redo-msg");
+  if (c && c.status === "failed") { msg.className = "v-redo-msg bad"; msg.textContent = "Try again did not work: " + (c.reason || "unknown error"); }
+  else if (busy) { msg.className = "v-redo-msg"; msg.textContent = "Another photo is being redone; this one can go next."; }
+  else if (!it.redoError) { msg.className = "v-redo-msg"; msg.textContent = ""; }
+  else { msg.className = "v-redo-msg bad"; msg.textContent = it.redoError; }
+  // "Other model" is one widget for every image: show this image's list (RAM needs
+  // depend on its size), fetched once per viewer visit.
+  other.setOptions(it.redoOptions || [], null);
+  if (!running && !done && it.optionsAt !== V.visit) loadRedoOptions(it);
+}
+async function loadRedoOptions(it) {
+  it.optionsAt = V.visit;
+  try {
+    const o = await api(`/api/jobs/${state.job}/redo/options?image=${it.id}`);
+    it.redoOptions = o.models.map((m) => ({
+      value: m.id, label: m.id, disabled: !m.fits,
+      hint: m.fits ? `needs ${m.needs_gb} GB free RAM${m.id === o.current_model ? ", used for this run" : ""}` : `needs ${m.needs_gb} GB free RAM, ${o.free_ram_gb} GB free now`,
+    }));
+    if (vItem() === it && !other.isOpen()) other.setOptions(it.redoOptions, null);
+  } catch (_) { it.optionsAt = null; }
+}
+async function startRedo(body, label) {
+  const it = vItem(); if (!it || redoRunning()) return;
+  it.redoError = ""; run.redoing = it.id; // set before the request: a double click sends one
+  try {
+    it.cand = await api(`/api/jobs/${state.job}/redo`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ image: it.id }, body)) });
+    log(`Trying ${base(it.name)} again (${label})`, "dim");
+    pollRedo(it);
+  } catch (e) { it.redoError = "Could not try again: " + e.message; run.redoing = null; }
+  if (vItem() === it) renderRedo(it);
+}
+function pollRedo(it) {
+  clearTimeout(V.poll);
+  const tick = async () => {
+    try { it.cand = await api(`/api/jobs/${state.job}/redo?image=${it.id}`); }
+    catch (e) { it.cand = { status: "failed", reason: e.message }; }
+    const live = $("viewer").open && vItem() === it;
+    if (it.cand.status === "running") { V.poll = setTimeout(tick, 400); if (live) renderRedo(it); return; }
+    run.redoing = null;
+    if (it.cand.status === "done") { V.pref = "split"; log(`New version of ${base(it.name)} ready to compare`, "ok"); if (!live) toast(`New version of ${base(it.name)} is ready to compare`); }
+    if (live) renderViewer(); else if ($("viewer").open) renderRedo(vItem());
+  };
+  V.poll = setTimeout(tick, 400);
+}
+function moveTo(it, g) {
+  if (it.status !== g) {
+    run.groups[it.status] = run.groups[it.status].filter((x) => x !== it.id);
+    run.groups[g].push(it.id); it.status = g;
+  }
+  updateTotals(); renderTab(); if (run.end) renderSummary();
+}
+for (const b of $("v-redo-opts").querySelectorAll("button")) {
+  b.addEventListener("click", () => startRedo(b.dataset.profile ? { profile: b.dataset.profile } : { edges: b.dataset.edges }, b.textContent));
+}
+$("v-keep").addEventListener("click", async () => {
+  const it = vItem(), c = ready(it); if (!c) return;
+  try {
+    const r = await api(`/api/jobs/${state.job}/keep`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: it.id, candidate: c.candidate }) });
+    it.cand = null; it.v = (it.v || 0) + 1; it.check = r.check;
+    const g = r.certified === true ? "passed" : "look";
+    it.why = g === "passed" ? "Passed the automatic check" : cap(reasonShort(r.check));
+    moveTo(it, g); toast(`Kept the new cut-out of ${base(it.name)}`); log(`Kept the new cut-out of ${base(it.name)} (${GROUP_LABEL[g]})`, "ok");
+    renderViewer();
+  } catch (e) { $("v-redo-msg").className = "v-redo-msg bad"; $("v-redo-msg").textContent = e.message; }
+});
+$("v-discard").addEventListener("click", async () => {
+  const it = vItem(), c = ready(it); if (!c) return;
+  try { await api(`/api/jobs/${state.job}/discard`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: it.id, candidate: c.candidate }) }); }
+  catch (_) { /* gone already */ }
+  it.cand = null; renderViewer();
 });
 
 // ---------- start ----------
 const params = new URLSearchParams(location.search);
 loadSystem().then(() => {
-  const pick = (id, value) => { if (value && [...$(id).options].some((o) => o.value === value)) $(id).value = value; };
+  const pick = (id, value) => { if (value && sel[id].has(value)) sel[id].value = value; };
   pick("model", params.get("m")); pick("edges", params.get("e")); pick("format", params.get("f")); hints();
   if (params.get("p")) { $("path").value = params.get("p"); loadPath(); }
 }).catch((e) => toast("Could not reach the local engine: " + e.message, 10000));

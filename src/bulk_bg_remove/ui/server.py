@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from ..bulk.events import Event, EventSink, JSONObject, JSONValue
+from ..bulk.models import AUTO_MODEL, Profile
 from ..bulk.plan import MODEL_PEAK_GB, minimum_free_ram_gb
 from ..bulk.runner import DEFAULT_FACTORY
 from ..bulk.scan import probe_hardware
@@ -42,11 +44,13 @@ from ..domain import OutputFormat
 from ..engine.model import DEFAULT_MODEL
 from ..formats import SUPPORTED_EXTENSIONS
 from ..paths import OUTPUT_SUFFIX
+from .redo import Candidate, keep, ranked_models
 
 UI_MODELS = ("birefnet-general-lite", "birefnet-general", "isnet-general-use")
 PREVIEW_MAX_SIDE = 900
 PREVIEW_MIN_SIDE = 32
 PREVIEW_DECODES = 2  # photos decoded at once for previews and close-ups
+REDO_STOP_WAIT_S = 30.0  # on shutdown, how long a cancelled "Try again" may take to clean up
 ZOOM_MAX_SIDE = 2048  # the viewer's close-up: a crop of the full-resolution image
 # Previews of a job never change (job ids are unique, outputs are written atomically).
 PREVIEW_CACHE = "private, max-age=3600"
@@ -64,6 +68,18 @@ class PathRequest(RunOptions):
     path: str
 
 
+class RedoRequest(BaseModel):
+    image: int
+    profile: Profile | None = None
+    model: str | None = None
+    edges: EdgeMode | None = None
+
+
+class CandidateRequest(BaseModel):
+    image: int
+    candidate: str
+
+
 Subscriber = tuple[asyncio.AbstractEventLoop, asyncio.Queue[JSONObject | None]]
 
 
@@ -73,6 +89,8 @@ class Job:
     name: str
     session: BulkSession
     staging: Path | None
+    input_path: Path
+    options: RunOptions
     events: list[JSONObject] = field(default_factory=list)
     # Each live SSE stream with the event loop it runs on (events come from worker threads).
     subscribers: list[Subscriber] = field(default_factory=list)
@@ -80,6 +98,13 @@ class Job:
     files: dict[int, tuple[Path, Path]] = field(default_factory=dict)
     # Folders of review sheets the engine wrote: the page does not show them.
     review_dirs: set[Path] = field(default_factory=set)
+    # "Try again" cut-outs waiting to be kept or discarded, one per image at most.
+    candidates: dict[int, Candidate] = field(default_factory=dict)
+
+    def drop_candidates(self) -> None:
+        for candidate in self.candidates.values():
+            candidate.drop()
+        self.candidates.clear()
 
 
 def reveal_in_file_manager(path: Path) -> None:
@@ -125,10 +150,16 @@ def _drop_review_sheets(job: Job) -> None:
 
 
 def _load_side(job: Job, image: int, side: str) -> Image.Image:
-    """The original photo (RGB) or the cut-out (RGBA) of one image of a job."""
-    if image not in job.files or side not in ("before", "after"):
+    """The original photo (RGB), the cut-out (RGBA) or the "Try again" candidate
+    (RGBA) of one image of a job."""
+    if image not in job.files or side not in ("before", "after", "candidate"):
         raise HTTPException(404, "no such image")
     source, destination = job.files[image]
+    if side == "candidate":
+        candidate = job.candidates.get(image)
+        if candidate is None or candidate.status != "done" or candidate.output is None:
+            raise HTTPException(404, "no new cut-out for this image")
+        destination = candidate.output
     try:
         if side == "before":
             return load_source(source).rgb
@@ -140,7 +171,7 @@ def _load_side(job: Job, image: int, side: str) -> Image.Image:
 
 def _image_response(picture: Image.Image, side: str, headers: dict[str, str]) -> Response:
     buffer = BytesIO()
-    if side == "after":
+    if side != "before":
         picture.save(buffer, format="PNG")
         media = "image/png"
     else:
@@ -169,14 +200,19 @@ def create_app(
     open_folder: Callable[[Path], None] = reveal_in_file_manager,
 ) -> FastAPI:
     jobs: dict[str, Job] = {}
+    redos: list[Candidate] = []  # "Try again" runs, so only one engine runs at a time
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
         for job in jobs.values():  # server stopping: stop work, drop uploaded copies
             job.session.cancel()
+            job.drop_candidates()
             if job.staging is not None and job.status != "running":
                 shutil.rmtree(job.staging, ignore_errors=True)
+        for candidate in redos:  # a redo still running deletes its folder when it ends
+            if candidate.thread is not None:
+                await asyncio.to_thread(candidate.thread.join, REDO_STOP_WAIT_S)
 
     app = FastAPI(
         title="bulk-bg-remove", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
@@ -223,6 +259,11 @@ def create_app(
     def active_job() -> Job | None:
         return next((j for j in jobs.values() if j.status == "running"), None)
 
+    def redo_running() -> bool:
+        # Includes discarded ones still finishing their image: one engine at a time.
+        redos[:] = [c for c in redos if c.status == "running"]
+        return bool(redos)
+
     def create_job(
         name: str, input_path: Path, output: Path, options: RunOptions, staging: Path | None
     ) -> JSONObject:
@@ -231,7 +272,10 @@ def create_app(
         with lock:
             if active_job() is not None:
                 raise HTTPException(409, "a run is already in progress — wait or stop it first")
+            if redo_running():
+                raise HTTPException(409, "a photo is being redone: wait for it to finish")
             for old in [j for j in jobs.values() if j.status != "running"]:
+                old.drop_candidates()
                 if old.staging is not None:
                     shutil.rmtree(old.staging, ignore_errors=True)
                 jobs.pop(old.id)
@@ -250,7 +294,7 @@ def create_app(
             session = BulkSession(
                 input_path, bulk_options, lambda e: broadcast(created[0], e), output_root=output
             )
-            job = Job(job_id, name, session, staging)
+            job = Job(job_id, name, session, staging, input_path, options)
             created.append(job)
             jobs[job_id] = job
         try:
@@ -355,13 +399,19 @@ def create_app(
                     handle.write(chunk)
         output = _unique_output(downloads, name)
         options = RunOptions(edges=edges, model=model, output_format=output_format)
-        return await asyncio.to_thread(create_job, name, root, output, options, staging)
+        try:
+            return await asyncio.to_thread(create_job, name, root, output, options, staging)
+        except HTTPException:
+            # Refused (busy, blocked input): the copies would otherwise stay behind.
+            if not any(job.staging == staging for job in jobs.values()):
+                shutil.rmtree(staging, ignore_errors=True)
+            raise
 
     @app.post("/api/jobs/{job_id}/start", response_model=None)
     def start(job_id: str) -> JSONObject:
         job = get_job(job_id)
         with lock:
-            if active_job() is not None:
+            if active_job() is not None or redo_running():
                 raise HTTPException(409, "a run is already in progress")
             if job.status != "planned":
                 raise HTTPException(409, "this run already started")
@@ -489,5 +539,134 @@ def create_app(
             "X-Image-Size": f"{full_w} {full_h}",
         }
         return _image_response(crop, side, headers)
+
+    def finished_job(job_id: str, image: int) -> Job:
+        job = get_job(job_id)
+        if job.status != "finished":
+            raise HTTPException(409, "the run has not finished yet")
+        if image not in job.files:
+            raise HTTPException(404, "no such image")
+        return job
+
+    @app.get("/api/jobs/{job_id}/redo/options", response_model=None)
+    def redo_options(job_id: str, image: Annotated[int, Query()]) -> JSONObject:
+        """Models "Try again" can offer for this photo, and which fit in free RAM now."""
+        job = finished_job(job_id, image)
+        source = job.files[image][0]
+        inventory = job.session.inventory
+        found = [s for s in inventory.sources if s.path == source] if inventory else []
+        megapixels = found[0].megapixels if found else 12.0
+        free = probe_hardware().ram_available_gb
+        return {
+            "free_ram_gb": free,
+            "current_model": job.session.model,
+            "models": ranked_models(free, job.options.edges, megapixels),
+        }
+
+    @app.post("/api/jobs/{job_id}/redo", response_model=None)
+    def redo(job_id: str, request: RedoRequest) -> JSONObject:
+        """Redo one image with other settings into a temporary folder (the CLI's
+        `--only` with `-o <temp>`), certified like the run. Poll GET .../redo."""
+        job = finished_job(job_id, request.image)
+        model = request.model or (AUTO_MODEL if request.profile else job.options.model)
+        if model != AUTO_MODEL and model not in MODEL_PEAK_GB:
+            raise HTTPException(400, f"unknown model: {model}")
+        source = job.files[request.image][0]
+        options = BulkOptions(
+            model=model,
+            output_format=job.options.output_format,
+            edges=request.edges or job.options.edges,
+            model_factory=model_factory,
+            min_free_ram_gb=min_free_ram_gb,
+            profile=request.profile or Profile.UNIFORM,
+            only=(str(source),),
+            review_sheets=True,
+        )
+        label = ", ".join(
+            part
+            for part in (
+                f"{request.profile.value} profile" if request.profile else "",
+                f"{request.edges.value} edges" if request.edges else "",
+                request.model or "",
+            )
+            if part
+        )
+        with lock:
+            if active_job() is not None:
+                raise HTTPException(409, "a run is in progress: try again when it ends")
+            if redo_running():
+                raise HTTPException(409, "another photo is being redone: wait for it")
+            folder = Path(tempfile.mkdtemp(prefix="bulk-bg-remove-redo-"))
+            candidate = Candidate(secrets.token_hex(6), request.image, folder, label or "again")
+            session = BulkSession(
+                job.input_path, options, candidate.on_event, output_root=folder / "redo-no-bg"
+            )
+            try:
+                plan = session.prepare()
+            except (FileNotFoundError, ValueError) as exc:
+                shutil.rmtree(folder, ignore_errors=True)
+                raise HTTPException(400, str(exc)) from exc
+            except Exception:
+                shutil.rmtree(folder, ignore_errors=True)
+                raise
+            if not plan.ok:
+                shutil.rmtree(folder, ignore_errors=True)
+                raise HTTPException(409, "; ".join(plan.blockers))
+            candidate.session, candidate.model = session, session.model
+            previous = job.candidates.pop(request.image, None)
+            if previous is not None:
+                previous.drop()
+            job.candidates[request.image] = candidate
+            redos.append(candidate)
+        candidate.thread = threading.Thread(
+            target=candidate.execute, name=f"redo-{job_id}", daemon=True
+        )
+        candidate.thread.start()
+        return candidate.to_dict()
+
+    @app.get("/api/jobs/{job_id}/redo", response_model=None)
+    def redo_status(job_id: str, image: Annotated[int, Query()]) -> JSONObject:
+        candidate = get_job(job_id).candidates.get(image)
+        if candidate is None:
+            raise HTTPException(404, "no new cut-out for this image")
+        return candidate.to_dict()
+
+    def take_candidate(job_id: str, request: CandidateRequest) -> tuple[Job, Candidate]:
+        job = finished_job(job_id, request.image)
+        candidate = job.candidates.get(request.image)
+        if candidate is None or candidate.id != request.candidate:
+            raise HTTPException(404, "no such new cut-out")
+        return job, candidate
+
+    @app.post("/api/jobs/{job_id}/keep", response_model=None)
+    def keep_new(job_id: str, request: CandidateRequest) -> JSONObject:
+        """Replace the image's output with the new cut-out, in one atomic step."""
+        job, candidate = take_candidate(job_id, request)
+        if candidate.status != "done" or candidate.output is None:
+            raise HTTPException(409, "the new cut-out is not ready")
+        destination = job.files[request.image][1]
+        if candidate.output.suffix != destination.suffix:
+            raise HTTPException(409, "the new cut-out has another file format")
+        with lock:
+            if active_job() is not None:
+                raise HTTPException(409, "a run is in progress: keep it when the run ends")
+            if job.candidates.get(request.image) is not candidate:
+                raise HTTPException(404, "no such new cut-out")  # replaced meanwhile
+            try:
+                keep(candidate, destination)
+            except OSError as exc:
+                raise HTTPException(500, f"could not replace the cut-out: {exc}") from exc
+            del job.candidates[request.image]
+        candidate.drop()
+        return {"image": request.image, "certified": candidate.certified, "check": candidate.check}
+
+    @app.post("/api/jobs/{job_id}/discard", response_model=None)
+    def discard(job_id: str, request: CandidateRequest) -> JSONObject:
+        job, candidate = take_candidate(job_id, request)
+        with lock:
+            if job.candidates.get(request.image) is candidate:
+                del job.candidates[request.image]
+        candidate.drop()
+        return {"image": request.image, "discarded": candidate.id}
 
     return app
