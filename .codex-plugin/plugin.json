@@ -24,6 +24,7 @@
       "Make a transparent PNG of this product photo.",
       "Cut out the people in these HEIC photos."
     ],
-    "brandColor": "#0d1117"
+    "brandColor": "#0d1117",
+    "composerIcon": "./assets/icon.svg"
   }
 }
